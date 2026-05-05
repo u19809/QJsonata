@@ -172,7 +172,7 @@ bool Utils::isArray(const std::any& value) {
 
 bool Utils::isObject(const std::any& value) {
     if (!value.has_value()) return false;
-    return value.type() == typeid(nlohmann::ordered_map<std::string, std::any>);
+    return value.type() == typeid(jsonata::backend::ordered_map<std::string, std::any>);
 }
 
 std::optional<std::string> Utils::type(const std::any& value) {
@@ -401,7 +401,7 @@ std::any Utils::convertNulls(const std::any& res) {
 void Utils::convertNullsMap(std::any& res) {
     try {
         auto& map =
-            std::any_cast<nlohmann::ordered_map<std::string, std::any>&>(res);
+            std::any_cast<jsonata::backend::ordered_map<std::string, std::any>&>(res);
         for (auto it = map.begin(); it != map.end(); ++it) {
             std::any& valRef = it->second;
             std::any converted = convertValue(valRef);

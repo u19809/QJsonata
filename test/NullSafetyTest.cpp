@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include <nlohmann/json.hpp>
+#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <vector>
 #include <memory>
@@ -12,39 +12,39 @@ protected:
     void SetUp() override {}
     void TearDown() override {}
 
-    static nlohmann::ordered_json makeArray(const std::vector<nlohmann::ordered_json>& values) {
-        nlohmann::ordered_json arr = nlohmann::ordered_json::array();
+    static JSONATA_TEST_BACKEND makeArray(const std::vector<JSONATA_TEST_BACKEND>& values) {
+        JSONATA_TEST_BACKEND arr = JSONATA_TEST_BACKEND::array();
         for (const auto& v : values) arr.push_back(v);
         return arr;
     }
 };
 
 TEST_F(NullSafetyTest, testNullSafety) {
-    auto r = Jsonata("$sift(undefined, $uppercase)").evaluate(nullptr);
+    auto r = Jsonata("$sift(undefined, $uppercase)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 
-    r = Jsonata("$each(undefined, $uppercase)").evaluate(nullptr);
+    r = Jsonata("$each(undefined, $uppercase)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 
-    r = Jsonata("$keys(null)").evaluate(nullptr);
+    r = Jsonata("$keys(null)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 
-    r = Jsonata("$map(null, $uppercase)").evaluate(nullptr);
+    r = Jsonata("$map(null, $uppercase)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 
-    r = Jsonata("$filter(null, $uppercase)").evaluate(nullptr);
+    r = Jsonata("$filter(null, $uppercase)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 
-    r = Jsonata("$single(null, $uppercase)").evaluate(nullptr);
+    r = Jsonata("$single(null, $uppercase)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 
-    r = Jsonata("$reduce(null, $uppercase)").evaluate(nullptr);
+    r = Jsonata("$reduce(null, $uppercase)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 
-    r = Jsonata("$lookup(null, 'anykey')").evaluate(nullptr);
+    r = Jsonata("$lookup(null, 'anykey')").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 
-    r = Jsonata("$spread(null)").evaluate(nullptr);
+    r = Jsonata("$spread(null)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(r.is_null());
 }
 
@@ -57,7 +57,7 @@ TEST_F(NullSafetyTest, testFilterNull) {
 }
 
 TEST_F(NullSafetyTest, testNotNull) {
-    auto result = Jsonata("$not($)").evaluate(nullptr);
+    auto result = Jsonata("$not($)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(result.is_null());
 }
 
@@ -70,9 +70,9 @@ TEST_F(NullSafetyTest, testSingleNull) {
 }
 
 TEST_F(NullSafetyTest, testFilterNullLookup) {
-    nlohmann::ordered_json arrayData = nlohmann::ordered_json::array({
-        nlohmann::ordered_json::object({{"content", "some"}}),
-        nlohmann::ordered_json::object()
+    JSONATA_TEST_BACKEND arrayData = JSONATA_TEST_BACKEND::array({
+        JSONATA_TEST_BACKEND::object({{"content", "some"}}),
+        JSONATA_TEST_BACKEND::object()
     });
     Jsonata expr("$filter($, function($v, $i, $a){$lookup($v, 'content')})");
     auto result = expr.evaluate(arrayData);

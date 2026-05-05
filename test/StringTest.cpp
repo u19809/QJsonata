@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include <nlohmann/json.hpp>
+#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <vector>
 #include <memory>
@@ -13,24 +13,26 @@ protected:
     void SetUp() override {}
     void TearDown() override {}
 
-    static nlohmann::ordered_json makeObject(const std::map<std::string, std::string>& data) {
-        nlohmann::ordered_json obj = nlohmann::ordered_json::object();
-        for (const auto& [k, v] : data) obj[k] = v;
+    static JSONATA_TEST_BACKEND makeObject(const std::map<std::string, std::string>& data) {
+        JSONATA_TEST_BACKEND obj = JSONATA_TEST_BACKEND::object();
+        jsonata::backend::copy( data, obj );
+        // for (const auto& [k, v] : data) obj[k] = v;
         return obj;
     }
-    static nlohmann::ordered_json makeObject(const std::map<std::string, int>& data) {
-        nlohmann::ordered_json obj = nlohmann::ordered_json::object();
-        for (const auto& [k, v] : data) obj[k] = v;
+    static JSONATA_TEST_BACKEND makeObject(const std::map<std::string, int>& data) {
+        JSONATA_TEST_BACKEND obj = JSONATA_TEST_BACKEND::object();
+        jsonata::backend::copy( data, obj );
+        // for (const auto& [k, v] : data) obj[k] = v;
         return obj;
     }
 };
 
 TEST_F(StringTest, stringTest) {
-    auto result1 = Jsonata("$string($)").evaluate(nlohmann::ordered_json("abc"));
+    auto result1 = Jsonata("$string($)").evaluate(JSONATA_TEST_BACKEND("abc"));
     ASSERT_TRUE(result1.is_string());
     EXPECT_EQ(result1.get<std::string>(), "abc");
 
-    auto result2 = Jsonata("$string(100.0)").evaluate(nullptr);
+    auto result2 = Jsonata("$string(100.0)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result2.is_string());
     EXPECT_EQ(result2.get<std::string>(), "100");
 }
@@ -41,42 +43,42 @@ TEST_F(StringTest, DISABLED_stringExponentTest) {
     ASSERT_TRUE(result1.is_string());
     EXPECT_EQ(result1.get<std::string>(), "100");
 
-    auto data2 = nlohmann::ordered_json::parse("{\"x\": 100000000000000000000}");
+    auto data2 = JSONATA_TEST_BACKEND::parse("{\"x\": 100000000000000000000}");
     auto result2 = Jsonata("$string(x)").evaluate(data2);
     ASSERT_TRUE(result2.is_string());
     EXPECT_EQ(result2.get<std::string>(), "100000000000000000000");
 
-    auto data3 = nlohmann::ordered_json::parse("{\"x\": 1000000000000000000000}");
+    auto data3 = JSONATA_TEST_BACKEND::parse("{\"x\": 1000000000000000000000}");
     auto result3 = Jsonata("$string(x)").evaluate(data3);
     ASSERT_TRUE(result3.is_string());
     EXPECT_EQ(result3.get<std::string>(), "1e+21");
 }
 
 TEST_F(StringTest, booleanTest) {
-    auto result = Jsonata("$string($)").evaluate(nlohmann::ordered_json(true));
+    auto result = Jsonata("$string($)").evaluate(JSONATA_TEST_BACKEND(true));
     ASSERT_TRUE(result.is_string());
     EXPECT_EQ(result.get<std::string>(), "true");
 }
 
 TEST_F(StringTest, numberTest) {
-    auto result = Jsonata("$string(5)").evaluate(nullptr);
+    auto result = Jsonata("$string(5)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_string());
     EXPECT_EQ(result.get<std::string>(), "5");
 }
 
 TEST_F(StringTest, arrayTest) {
-    auto result = Jsonata("[1..5].$string()").evaluate(nullptr);
+    auto result = Jsonata("[1..5].$string()").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_array());
     std::vector<std::string> expected = {"1", "2", "3", "4", "5"};
     ASSERT_EQ(result.size(), expected.size());
     for (size_t i = 0; i < expected.size(); ++i) {
         ASSERT_TRUE(result[i].is_string());
-        EXPECT_EQ(result[i].get<std::string>(), expected[i]);
+        EXPECT_EQ(result[i].template get<std::string>(), expected[i]);
     }
 }
 
 TEST_F(StringTest, mapTest) {
-    nlohmann::ordered_json emptyMap = nlohmann::ordered_json::object();
+    JSONATA_TEST_BACKEND emptyMap = JSONATA_TEST_BACKEND::object();
     auto result = Jsonata("$string($)").evaluate(emptyMap);
     ASSERT_TRUE(result.is_string());
     EXPECT_EQ(result.get<std::string>(), "{}");
@@ -113,36 +115,36 @@ TEST_F(StringTest, escapeTest) {
 }
 
 TEST_F(StringTest, splitTest) {
-    nlohmann::ordered_json emptyMap = nlohmann::ordered_json::object();
+    JSONATA_TEST_BACKEND emptyMap = JSONATA_TEST_BACKEND::object();
     auto result1 = Jsonata("$split(a, '-')").evaluate(emptyMap);
     EXPECT_TRUE(result1.is_null());
 
     auto result2 = Jsonata("a ~> $split('-')").evaluate(emptyMap);
     EXPECT_TRUE(result2.is_null());
 
-    auto result3 = Jsonata("$split('', '')").evaluate(nullptr);
+    auto result3 = Jsonata("$split('', '')").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result3.is_array());
     EXPECT_EQ(result3.size(), 0);
 
-    auto result4 = Jsonata("$split('a1b2c3d4', '', 4)").evaluate(nullptr);
+    auto result4 = Jsonata("$split('a1b2c3d4', '', 4)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result4.is_array());
     std::vector<std::string> expected = {"a", "1", "b", "2"};
     ASSERT_EQ(result4.size(), expected.size());
     for (size_t i = 0; i < expected.size(); ++i) {
         ASSERT_TRUE(result4[i].is_string());
-        EXPECT_EQ(result4[i].get<std::string>(), expected[i]);
+        EXPECT_EQ(result4[i].template get<std::string>(), expected[i]);
     }
 
-    auto result5 = Jsonata("$split('this..is.a.test', '.')").evaluate(nullptr);
+    auto result5 = Jsonata("$split('this..is.a.test', '.')").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result5.is_array());
     std::vector<std::string> expected5 = {"this", "", "is", "a", "test"};
     ASSERT_EQ(result5.size(), expected5.size());
     for (size_t i = 0; i < expected5.size(); ++i) {
         ASSERT_TRUE(result5[i].is_string());
-        EXPECT_EQ(result5[i].get<std::string>(), expected5[i]);
+        EXPECT_EQ(result5[i].template get<std::string>(), expected5[i]);
     }
 
-    auto result6 = Jsonata("$split('this..is.a.test...', '.')").evaluate(nullptr);
+    auto result6 = Jsonata("$split('this..is.a.test...', '.')").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result6.is_array());
     std::vector<std::string> expected6 = {"this", "", "is", "a", "test", "", "", ""};
     ASSERT_EQ(result6.size(), expected6.size());
@@ -153,24 +155,24 @@ TEST_F(StringTest, splitTest) {
 }
 
 TEST_F(StringTest, trimTest) {
-    auto result1 = Jsonata("$trim(\"\n\")").evaluate(nullptr);
+    auto result1 = Jsonata("$trim(\"\n\")").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result1.is_string());
     EXPECT_EQ(result1.get<std::string>(), "");
 
-    auto result2 = Jsonata("$trim(\" \")").evaluate(nullptr);
+    auto result2 = Jsonata("$trim(\" \")").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result2.is_string());
     EXPECT_EQ(result2.get<std::string>(), "");
 
-    auto result3 = Jsonata("$trim(\"\")").evaluate(nullptr);
+    auto result3 = Jsonata("$trim(\"\")").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result3.is_string());
     EXPECT_EQ(result3.get<std::string>(), "");
 
-    auto result4 = Jsonata("$trim(notthere)").evaluate(nullptr);
+    auto result4 = Jsonata("$trim(notthere)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     EXPECT_TRUE(result4.is_null());
 }
 
 TEST_F(StringTest, evalTest) {
-    auto result = Jsonata("(\n  $data := {'Wert1': 'AAA', 'Wert2': 'BBB'};\n  $eval('$data.Wert1')\n)").evaluate(nullptr);
+    auto result = Jsonata("(\n  $data := {'Wert1': 'AAA', 'Wert2': 'BBB'};\n  $eval('$data.Wert1')\n)").evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_string());
     EXPECT_EQ(result.get<std::string>(), "AAA");
 }
@@ -185,8 +187,8 @@ TEST_F(StringTest, regexTest) {
 
 TEST_F(StringTest, fieldnameWithSpecialCharTest) {
     Jsonata expr("$ ~> |$|{}|");
-    nlohmann::ordered_json input;
-    input["a\nb"] = "c\nd";
+    JSONATA_TEST_BACKEND input;
+    jsonata::backend::set( input, "a\nb", "c\nd" );
     auto result = expr.evaluate(input);
     EXPECT_EQ(result, input);
 }
@@ -195,7 +197,7 @@ TEST_F(StringTest, regexLiteralTest) {
     // Verify regex at end of expression doesn't crash (issue #88)
     EXPECT_NO_THROW({
         Jsonata expr("/^test.*$/");
-        expr.evaluate(nullptr);
+        expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     });
 }
 
@@ -203,13 +205,13 @@ TEST_F(StringTest, evalRegexTest) {
     // Verify $eval of regex at end of expression doesn't crash (issue #88)
     EXPECT_NO_THROW({
         Jsonata expr("$eval('/^test.*$/')");
-        expr.evaluate(nullptr);
+        expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     });
 }
 
 TEST_F(StringTest, evalRegexCheckAnswerDataTest) {
     Jsonata expr("(\n    $matcher := $eval('/l/');\n    ('Hello World' ~> $matcher);\n)");
-    auto result = expr.evaluate(nullptr);
+    auto result = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_object());
     EXPECT_EQ(result["match"].get<std::string>(), "l");
     EXPECT_EQ(result["start"].get<long long>(), 2);
@@ -220,7 +222,7 @@ TEST_F(StringTest, evalRegexCheckAnswerDataTest) {
 
 TEST_F(StringTest, evalRegexCallNextTest) {
     Jsonata expr("(\n    $matcher := $eval('/l/');\n    ('Hello World' ~> $matcher).next();\n)");
-    auto result = expr.evaluate(nullptr);
+    auto result = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_object());
     EXPECT_EQ(result["match"].get<std::string>(), "l");
     EXPECT_EQ(result["start"].get<long long>(), 3);
@@ -230,7 +232,7 @@ TEST_F(StringTest, evalRegexCallNextTest) {
 }
 
 TEST_F(StringTest, DISABLED_replaceTest) {
-    auto input = nlohmann::ordered_json("http://example.org/test{par}");
+    auto input = JSONATA_TEST_BACKEND("http://example.org/test{par}");
     auto result = Jsonata("$replace($, /{par}/, '')").evaluate(input);
     ASSERT_TRUE(result.is_string());
     EXPECT_EQ(result.get<std::string>(), "http://example.org/test");

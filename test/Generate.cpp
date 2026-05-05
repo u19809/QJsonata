@@ -13,9 +13,9 @@
 #include <vector>
 #include <algorithm>
 #include <sstream>
-#include <nlohmann/json.hpp>
+#include <any>
+#include "jsonata/backends.h"
 
-using nlohmann::ordered_json;
 namespace fs = std::filesystem;
 
 class JsonataTestGenerator {
@@ -112,7 +112,7 @@ public:
     }
 
     // Extract expression from test case for comment
-    static std::string getExpressionComment(const ordered_json& testCase) {
+    static std::string getExpressionComment(const JSONATA_TEST_BACKEND& testCase) {
         if (testCase.is_object() && testCase.contains("expr") && testCase["expr"].is_string())
             return escapeString(testCase["expr"].get<std::string>());
         return "";
@@ -235,7 +235,7 @@ public:
         
         try {
             // First try parsing the content as-is
-            auto jsonValue = ordered_json::parse(content);
+            auto jsonValue = JSONATA_TEST_BACKEND::parse(content);
 
             int testCount = 0;
 
@@ -259,7 +259,7 @@ public:
             
             try {
                 std::string processedContent = preprocessJsonContent(content);
-                auto jsonValue = ordered_json::parse(processedContent);
+                auto jsonValue = JSONATA_TEST_BACKEND::parse(processedContent);
                 int testCount = 0;
                 if (jsonValue.is_array()) {
                     for (size_t i = 0; i < jsonValue.size(); ++i) {

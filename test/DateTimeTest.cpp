@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include <nlohmann/json.hpp>
+#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <memory>
 #include <string>
@@ -20,7 +20,7 @@ protected:
 
 TEST_F(DateTimeTest, testFormatInteger) {
     Jsonata expr("$toMillis('2018th', '[Y0001;o]')");
-    auto result = expr.evaluate(nullptr);
+    auto result = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_number_integer());
     EXPECT_EQ(result.get<long long>(), 1514764800000LL);
 }
@@ -29,7 +29,7 @@ TEST_F(DateTimeTest, testToMillis) {
     std::string noZoneTooPrecise = "2024-08-27T22:43:15.78133";
     Jsonata expr("$fromMillis($toMillis($))");
     
-    auto inputData = nlohmann::ordered_json(noZoneTooPrecise);
+    auto inputData = JSONATA_TEST_BACKEND(noZoneTooPrecise);
     auto result = expr.evaluate(inputData);
     
     // Debug: Print what we actually got

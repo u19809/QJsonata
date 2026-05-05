@@ -25,6 +25,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <array>
 
 #include "jsonata/JException.h"
 #include "jsonata/Utils.h"
@@ -375,8 +376,8 @@ std::unique_ptr<Tokenizer::Token> Tokenizer::next(bool prefix) {
         // Use byte offsets to get iterators into the original string without copying
         auto byteStart = path_.cbegin() + static_cast<std::string::difference_type>(byte_offsets_[position_]);
         auto byteEnd = path_.cend();
-        std::cmatch match;
-        if (std::regex_search(&*byteStart, &*byteEnd, match, numregex) &&
+        std::smatch match;
+        if (std::regex_search(byteStart, byteEnd, match, numregex) &&
             match.position() == 0) {
             std::string numStr = match.str(0);
             double num = std::stod(numStr);

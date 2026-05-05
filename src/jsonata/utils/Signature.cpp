@@ -21,7 +21,7 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
-#include <nlohmann/json.hpp>
+#include "jsonata/backends.h"
 #include <sstream>
 #include <stdexcept>
 
@@ -131,7 +131,7 @@ bool Signature::isArrayType(const std::any &value) {
 std::string Signature::checkObjectType(const std::any &value) {
     // Try map (object)
     try {
-        std::any_cast<nlohmann::ordered_map<std::string, std::any>>(value);
+        auto r = std::any_cast<jsonata::backend::ordered_map<std::string, std::any>>(value);
         return "o";
     } catch (const std::bad_any_cast &) {
         // Try shared_ptr<map> - check if it's a regex object
@@ -148,12 +148,12 @@ bool Signature::isFunctionType(const std::any &value) {
     // Check for JFunction (native functions like $sum, $map, etc.) - Java
     // reference equivalent
     try {
-        std::any_cast<JFunction>(value);
+        auto r = std::any_cast<JFunction>(value);
         return true;
     } catch (const std::bad_any_cast &) {
         // Check for std::function (generic function objects)
         try {
-            std::any_cast<std::function<std::any()>>(value);
+            auto r = std::any_cast<std::function<std::any()>>(value);
             return true;
         } catch (const std::bad_any_cast &) {
             return false;

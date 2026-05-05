@@ -25,11 +25,11 @@
  */
 #pragma once
 
+#include "jsonata/backends.h"
 #include <any>
 #include <chrono>
 #include <functional>
 #include <memory>
-#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <vector>
@@ -37,477 +37,680 @@
 #include "jsonata/Parser.h"
 
 // Forward declarations
-namespace jsonata {
-class JException;
-namespace utils {
-class Signature;
-}
-namespace json {
-struct JsonValue;
-}
-}  // namespace jsonata
+namespace jsonata
+{
+    class JException;
+    namespace utils { class Signature; }
+    namespace json { struct JsonValue; }
+} // namespace jsonata
 
-namespace jsonata {
+namespace jsonata
+{
+    // Forward declaration for callback types
+    class Frame;
+    using EntryCallback = std::
+        function<void(std::shared_ptr<Parser::Symbol>, const std::any &, std::shared_ptr<Frame>)>;
+    using ExitCallback = std::function<void(
+        std::shared_ptr<Parser::Symbol>, const std::any &, std::shared_ptr<Frame>, const std::any &)>;
 
-// Forward declaration for callback types
-class Frame;
-using EntryCallback = std::function<void(
-    std::shared_ptr<Parser::Symbol>, const std::any&, std::shared_ptr<Frame>)>;
-using ExitCallback =
-    std::function<void(std::shared_ptr<Parser::Symbol>, const std::any&,
-                       std::shared_ptr<Frame>, const std::any&)>;
-
-/**
+    /**
  * Frame class for variable bindings and scope management
  */
-class Frame {
-  private:
-    std::shared_ptr<Frame> parent_;
-    nlohmann::ordered_map<std::string, std::any> bindings_;
-    std::chrono::time_point<std::chrono::steady_clock> timestamp_;
-    int64_t timeout_;
-    int64_t recursionDepth_;
-    EntryCallback entryCallback_;
-    ExitCallback exitCallback_;
-    std::unique_ptr<class Timebox> timebox_;
+    class Frame
+    {
+        private:
+            std::shared_ptr<Frame> parent_;
+            jsonata::backend::ordered_map<std::string, std::any> bindings_;
+            std::chrono::time_point<std::chrono::steady_clock> timestamp_;
+            int64_t timeout_;
+            int64_t recursionDepth_;
+            EntryCallback entryCallback_;
+            ExitCallback exitCallback_;
+            std::unique_ptr<class Timebox> timebox_;
 
-  public:
-    bool isParallelCall = false;
+        public:
+            bool isParallelCall = false;
 
-  public:
-    // Constructors
-    Frame();
-    Frame(std::shared_ptr<Frame> parent);
+        public:
+            // Constructors
+            Frame();
+            Frame(std::shared_ptr<Frame> parent);
 
-    // Variable binding and lookup
-    void bind(const std::string& name, const std::any& value);
-    std::any lookup(const std::string& name) const;
+            // Variable binding and lookup
+            void bind(const std::string &name, const std::any &value);
+            std::any lookup(const std::string &name) const;
 
-    // Runtime bounds
-    void setRuntimeBounds(int64_t timeout, int64_t maxRecursionDepth);
+            // Runtime bounds
+            void setRuntimeBounds(int64_t timeout, int64_t maxRecursionDepth);
 
-    // Evaluation callbacks
-    void setEvaluateEntryCallback(EntryCallback callback);
-    void setEvaluateExitCallback(ExitCallback callback);
+            // Evaluation callbacks
+            void setEvaluateEntryCallback(EntryCallback callback);
+            void setEvaluateExitCallback(ExitCallback callback);
 
-    // Parent access
-    std::shared_ptr<Frame> getParent() const { return parent_; }
+            // Parent access
+            std::shared_ptr<Frame> getParent() const { return parent_; }
 
-    // Bindings access
-    const nlohmann::ordered_map<std::string, std::any>& getBindings() const {
-        return bindings_;
-    }
-};
+            // Bindings access
+            const jsonata::backend::ordered_map<std::string, std::any> &getBindings() const
+            {
+                return bindings_;
+            }
+    };
 
-/**
+    /**
  * Function types for JSONata functions
  */
-class JFunction {
-  public:
-    std::function<std::any(const Utils::JList&, const std::any&,
-                           std::shared_ptr<Frame>)>
-        implementation;
-    std::shared_ptr<utils::Signature> signature;
+    class JFunction
+    {
+        public:
+            std::function<std::any(const Utils::JList &, const std::any &, std::shared_ptr<Frame>)>
+                implementation;
+            std::shared_ptr<utils::Signature> signature;
 
-    JFunction() = default;
-    JFunction(std::function<std::any(const Utils::JList&, const std::any&,
-                                     std::shared_ptr<Frame>)>
-                  impl)
-        : implementation(impl) {}
+            JFunction() = default;
+            JFunction(std::function<std::any(
+                          const Utils::JList &, const std::any &, std::shared_ptr<Frame>)> impl)
+                : implementation(impl)
+            {}
 
-    virtual ~JFunction() = default;
-};
+            virtual ~JFunction() = default;
+    };
 
-/**
+    /**
  * Main Jsonata evaluator class
  */
-class Jsonata {
-  public:
-    // Constructors
-    Jsonata();
-    Jsonata(const std::string& jsonataExpression);
-    Jsonata(const Jsonata& other);  // Copy constructor for per-thread instances
+    class Jsonata
+    {
+        public:
+            // Constructors
+            Jsonata();
+            Jsonata(const std::string &jsonataExpression);
+            Jsonata(const Jsonata &other); // Copy constructor for per-thread instances
 
-    // Main evaluation methods (ordered JSON variants)
-    nlohmann::ordered_json evaluate(const nlohmann::ordered_json& input);
-    nlohmann::ordered_json evaluate(const nlohmann::ordered_json& input,
-                                    std::shared_ptr<Frame> bindings);
-    nlohmann::ordered_json evaluate(std::nullptr_t);
-    nlohmann::ordered_json evaluate(std::nullptr_t,
-                                    std::shared_ptr<Frame> bindings);
+            template <typename T>
+                requires isCompatible<T>
+            static T parse( const std::string & s ) {
+                return T::parse( s );
+            }
 
-    // Main evaluation methods (unordered nlohmann::json variants)
-    nlohmann::json evaluate(const nlohmann::json& input);
-    nlohmann::json evaluate(const nlohmann::json& input,
-                            std::shared_ptr<Frame> bindings);
-    nlohmann::json evaluateUnordered(std::nullptr_t);
-    nlohmann::json evaluateUnordered(std::nullptr_t,
-                                     std::shared_ptr<Frame> bindings);
-    std::any evaluate(std::shared_ptr<Parser::Symbol> expr,
-                      const std::any& input,
-                      std::shared_ptr<Frame> environment);
+            // Main evaluation methods
+            template<typename T>
+                requires isCompatible<T>
+            T evaluate(const T &input, std::shared_ptr<Frame> bindings)
+            {
+                currentInstance_ = this;
 
-    // Environment access
-    std::shared_ptr<Frame> getEnvironment() const;
+                // Check for syntax errors (equivalent to Java's check for errors != null)
+                if (!expression_) {
+                    throw JException("S0500", 0); // Expression compilation failed
+                }
 
-    // Factory methods
-    static Jsonata jsonata(const std::string& expression);
+                // Convert JSON input to std::any domain for the evaluator
+                std::any result;
+                try {
+                    // Set thread-local input/environment for this evaluation
+                    std::any anyInput = toAny(input);
+                    result = evaluate(anyInput, bindings);
+                    return fromAny<T>(result);
+                } catch (const std::exception &err) {
+                    // TODO: populateMessage(err);
+                    throw;
+                }
+            }
 
-    // Instance methods (matching Java reference)
-    std::shared_ptr<Frame> createFrame();
-    std::shared_ptr<Frame> createFrame(
-        std::shared_ptr<Frame> enclosingEnvironment);
+            template<typename T>
+                requires isCompatible<T>
+            inline T evaluate(const T &input)
+            {
+                return evaluate(input, nullptr);
+            }
+            template<typename T>
+                requires isCompatible<T>
+            T evaluate(std::nullptr_t)
+            {
+                return evaluate(T());
+            }
+            template<typename T>
+                requires isCompatible<T>
+            T evaluate(std::nullptr_t, std::shared_ptr<Frame> bindings)
+            {
+                return evaluate(T(), bindings);
+            }
 
-    // Parse expression
-    std::shared_ptr<Parser::Symbol> parse(const std::string& expression);
+            // Main evaluation methods (ordered JSON variants)
+            // jsonata::backend::ordered_json evaluate(const jsonata::backend::ordered_json &input);
+            // jsonata::backend::ordered_json evaluate(const jsonata::backend::ordered_json &input,
+            //                                         std::shared_ptr<Frame> bindings);
+            // jsonata::backend::ordered_json evaluate(std::nullptr_t);
+            // jsonata::backend::ordered_json evaluate(std::nullptr_t, std::shared_ptr<Frame> bindings);
 
-    // Debug helper
-    std::shared_ptr<Parser::Symbol> getExpression() const {
-        return expression_;
-    }
+            // // Main evaluation methods (unordered jsonata::backend::json variants)
+            // jsonata::backend::json evaluate(const jsonata::backend::json &input);
+            // jsonata::backend::json evaluate(const jsonata::backend::json &input,
+            //                                 std::shared_ptr<Frame> bindings);
+            // jsonata::backend::json evaluateUnordered(std::nullptr_t);
+            // jsonata::backend::json evaluateUnordered(std::nullptr_t,
+            //                                          std::shared_ptr<Frame> bindings);
 
-    // Lambda function application support
-    std::any apply(const std::any& lambda, const Utils::JList& args,
-                   const std::any& input, std::shared_ptr<Frame> environment);
-    std::any applyInner(const std::any& proc, const Utils::JList& args,
-                        const std::any& input,
-                        std::shared_ptr<Frame> environment);
-    std::any applyProcedure(const std::any& proc, const Utils::JList& args);
-    Utils::JList validateArguments(const std::any& signature,
-                                   const Utils::JList& args,
-                                   const std::any& context);
-
-    // Partial application support (matching Java implementation)
-    std::any partialApplyProcedure(std::shared_ptr<class Parser::Symbol> proc,
-                                   const Utils::JList& args);
-    std::any partialApplyNativeFunction(const std::any& native,
-                                        const Utils::JList& args,
-                                        const std::string& functionName);
-
-    // Thread-local instances (matching Java implementation)
-    static thread_local Jsonata* currentInstance_;
-    // Owns the per-thread clone created by getPerThreadInstance(); ensures
-    // deletion on thread exit and avoids manual cleanup.
-    static thread_local std::unique_ptr<Jsonata> ownedInstance_;
-    // Optional: explicitly clear the per-thread instance before thread exit.
-    static void clearPerThreadInstance();
-
-    std::shared_ptr<Frame> environment_;
-    static thread_local std::shared_ptr<class Parser> currentParser_;
-    static thread_local std::any tls_input_;
-    static thread_local std::shared_ptr<Frame> tls_environment_;
-    static Jsonata* getCurrentInstance();
-    static std::shared_ptr<class Parser> getCurrentParser();
-    Jsonata* getPerThreadInstance();
-
-    // Public accessors for thread-local context (used by Functions)
-    const std::any& getCurrentInput() const { return tls_input_; }
-    std::shared_ptr<Frame> getCurrentEnvironment() const {
-        return tls_environment_;
-    }
-
-    // Missing public API methods from Java
-    void assign(const std::string& name, const std::any& value);
-    void registerFunction(const std::string& name,
-                          const JFunction& implementation);
-    void registerFunction(
-        const std::string& name,
-        std::function<std::any(const Utils::JList&)> implementation);
-
-    // Type-safe function registration overloads (equivalent to Java's Fn0<R>,
-    // Fn1<A,R>, etc.)
-    template <typename R>
-    void registerFunction(const std::string& name,
-                          std::function<R()> implementation);
-
-    template <typename A, typename R>
-    void registerFunction(const std::string& name,
-                          std::function<R(A)> implementation);
-
-    template <typename A, typename B, typename R>
-    void registerFunction(const std::string& name,
-                          std::function<R(A, B)> implementation);
-
-    template <typename A, typename B, typename C, typename R>
-    void registerFunction(const std::string& name,
-                          std::function<R(A, B, C)> implementation);
-
-    template <typename A, typename B, typename C, typename D, typename R>
-    void registerFunction(const std::string& name,
-                          std::function<R(A, B, C, D)> implementation);
-
-  public:
-    // Function-like detection (Java reference: line 1551)
-    bool isFunctionLike(const std::any& o) const;
-
-    // Input validation control
-    bool isValidateInput() const;
-    void setValidateInput(bool validateInput);
-
-    // Error handling
-    std::vector<std::exception_ptr> getErrors() const;
-
-    // Utility methods
-    static bool boolize(const std::any& value);
-
-  public:
-    std::unique_ptr<Parser> parser_;
-
-    static std::shared_ptr<Frame> staticFrame_;
-    static std::shared_ptr<Frame> getStaticFrame();
-    static void initializeBuiltinFunctions(std::shared_ptr<Frame> frame);
-
-    // New members for string constructor
-    std::shared_ptr<Parser::Symbol> expression_;
-
-    bool validateInput_ = false;
-    std::vector<std::exception_ptr> errors_;
-    int64_t timestamp_ = 0;
-
-    // Current evaluation context is stored in thread-local variables
-
-    // GroupEntry structure for object grouping (matches Java implementation)
-    struct GroupEntry {
-        std::any data;
-        size_t exprIndex;
-    };
-
-    // Core evaluation method
-    std::any _evaluate(std::shared_ptr<Parser::Symbol> expr,
-                       const std::any& input,
-                       std::shared_ptr<Frame> environment);
-
-    // Expression evaluation methods
-    std::any evaluateLiteral(std::shared_ptr<Parser::Symbol> expr);
-    std::any evaluateName(std::shared_ptr<Parser::Symbol> expr,
-                          const std::any& input,
-                          std::shared_ptr<Frame> environment);
-    std::any evaluateVariable(std::shared_ptr<Parser::Symbol> expr,
-                              const std::any& input,
+            std::any evaluate(std::shared_ptr<Parser::Symbol> expr,
+                              const std::any &input,
                               std::shared_ptr<Frame> environment);
-    std::any evaluateBinary(std::shared_ptr<Parser::Symbol> expr,
-                            const std::any& input,
-                            std::shared_ptr<Frame> environment);
-    std::any evaluateUnary(std::shared_ptr<Parser::Symbol> expr,
-                           const std::any& input,
+
+            // Environment access
+            std::shared_ptr<Frame> getEnvironment() const;
+
+            // Factory methods
+            static Jsonata jsonata(const std::string &expression);
+
+            // Instance methods (matching Java reference)
+            std::shared_ptr<Frame> createFrame();
+            std::shared_ptr<Frame> createFrame(std::shared_ptr<Frame> enclosingEnvironment);
+
+            // Parse expression
+            std::shared_ptr<Parser::Symbol> parse(const std::string &expression);
+
+            // Debug helper
+            std::shared_ptr<Parser::Symbol> getExpression() const { return expression_; }
+
+            // Lambda function application support
+            std::any apply(const std::any &lambda,
+                           const Utils::JList &args,
+                           const std::any &input,
                            std::shared_ptr<Frame> environment);
-    std::any evaluateFunction(std::shared_ptr<Parser::Symbol> expr,
-                              const std::any& input,
-                              std::shared_ptr<Frame> environment);
-    std::any evaluateFunctionWithContext(std::shared_ptr<Parser::Symbol> expr,
-                                         const std::any& input,
-                                         std::shared_ptr<Frame> environment,
-                                         const std::any& applytoContext);
-    std::any evaluateRegex(std::shared_ptr<Parser::Symbol> expr,
-                           const std::any& input,
-                           std::shared_ptr<Frame> environment);
-    std::any evaluateWildcard(std::shared_ptr<Parser::Symbol> expr,
-                              const std::any& input);
-    std::any flatten(const std::any& arg, Utils::JList* flattened = nullptr);
-    std::any evaluateFilter(std::shared_ptr<Parser::Symbol> predicate,
-                            const std::any& input,
-                            std::shared_ptr<Frame> environment);
-    std::any evaluatePath(std::shared_ptr<Parser::Symbol> expr,
-                          const std::any& input,
-                          std::shared_ptr<Frame> environment);
-    std::any evaluateCondition(std::shared_ptr<Parser::Symbol> expr,
-                               const std::any& input,
-                               std::shared_ptr<Frame> environment);
-    std::any evaluateDescendant(std::shared_ptr<Parser::Symbol> expr,
-                                const std::any& input,
+            std::any applyInner(const std::any &proc,
+                                const Utils::JList &args,
+                                const std::any &input,
                                 std::shared_ptr<Frame> environment);
-    void recurseDescendants(const std::any& input,
-                            std::vector<std::any>& results);
-    std::any evaluateApply(std::shared_ptr<Parser::Symbol> expr,
-                           const std::any& input,
-                           std::shared_ptr<Frame> environment);
-    std::any evaluateRange(std::shared_ptr<Parser::Symbol> expr,
-                           const std::any& input,
-                           std::shared_ptr<Frame> environment);
-    std::any evaluateBind(std::shared_ptr<Parser::Symbol> expr,
-                          const std::any& input,
-                          std::shared_ptr<Frame> environment);
-    std::any evaluateLambda(std::shared_ptr<Parser::Symbol> expr,
-                            const std::any& input,
-                            std::shared_ptr<Frame> environment);
-    std::any evaluateSort(std::shared_ptr<Parser::Symbol> expr,
-                          const std::any& input,
-                          std::shared_ptr<Frame> environment);
-    std::any evaluateTransform(std::shared_ptr<Parser::Symbol> expr,
-                               const std::any& input,
-                               std::shared_ptr<Frame> environment);
-    std::any evaluateParent(std::shared_ptr<Parser::Symbol> expr,
-                            const std::any& input,
-                            std::shared_ptr<Frame> environment);
-    std::any evaluateBlock(std::shared_ptr<Parser::Symbol> expr,
-                           const std::any& input,
-                           std::shared_ptr<Frame> environment);
+            std::any applyProcedure(const std::any &proc, const Utils::JList &args);
+            Utils::JList validateArguments(const std::any &signature,
+                                           const Utils::JList &args,
+                                           const std::any &context);
 
-    // Binary operation evaluators
-    std::any evaluateNumericExpression(const std::any& lhs, const std::any& rhs,
-                                       const std::string& op);
-    std::any evaluateComparisonExpression(const std::any& lhs,
-                                          const std::any& rhs,
-                                          const std::string& op);
-    bool deepEquals(const std::any& lhs, const std::any& rhs);
-    std::any evaluateEqualityExpression(const std::any& lhs,
-                                        const std::any& rhs,
-                                        const std::string& op);
-    std::any evaluateBooleanExpression(const std::any& lhs,
-                                       std::function<std::any()> rhs,
-                                       const std::string& op);
-    std::any evaluateStringConcat(const std::any& lhs, const std::any& rhs);
-    std::any evaluateRangeExpression(const std::any& lhs, const std::any& rhs);
-    std::any evaluateIncludesExpression(const std::any& lhs,
-                                        const std::any& rhs);
+            // Partial application support (matching Java implementation)
+            std::any partialApplyProcedure(std::shared_ptr<class Parser::Symbol> proc,
+                                           const Utils::JList &args);
+            std::any partialApplyNativeFunction(const std::any &native,
+                                                const Utils::JList &args,
+                                                const std::string &functionName);
 
-    // Missing advanced evaluation methods from Java
-    std::any evaluateStages(
-        const std::vector<std::shared_ptr<Parser::Symbol>>& stages,
-        const std::any& input, std::shared_ptr<Frame> environment);
-    std::any evaluateStep(std::shared_ptr<Parser::Symbol> expr,
-                          const std::any& input,
-                          std::shared_ptr<Frame> environment,
-                          bool lastStep = false);
-    std::any evaluateTupleStep(std::shared_ptr<Parser::Symbol> expr,
-                               const Utils::JList& input,
-                               const std::optional<Utils::JList>& tupleBindings,
+            // Thread-local instances (matching Java implementation)
+            static thread_local Jsonata *currentInstance_;
+            // Owns the per-thread clone created by getPerThreadInstance(); ensures
+            // deletion on thread exit and avoids manual cleanup.
+            static thread_local std::unique_ptr<Jsonata> ownedInstance_;
+            // Optional: explicitly clear the per-thread instance before thread exit.
+            static void clearPerThreadInstance();
+
+            std::shared_ptr<Frame> environment_;
+            static thread_local std::shared_ptr<class Parser> currentParser_;
+            static thread_local std::any tls_input_;
+            static thread_local std::shared_ptr<Frame> tls_environment_;
+            static Jsonata *getCurrentInstance();
+            static std::shared_ptr<class Parser> getCurrentParser();
+            Jsonata *getPerThreadInstance();
+
+            // Public accessors for thread-local context (used by Functions)
+            const std::any &getCurrentInput() const { return tls_input_; }
+            std::shared_ptr<Frame> getCurrentEnvironment() const { return tls_environment_; }
+
+            // Missing public API methods from Java
+            void assign(const std::string &name, const std::any &value);
+            void registerFunction(const std::string &name, const JFunction &implementation);
+            void registerFunction(const std::string &name,
+                                  std::function<std::any(const Utils::JList &)> implementation);
+
+            // Type-safe function registration overloads (equivalent to Java's Fn0<R>,
+            // Fn1<A,R>, etc.)
+            template<typename R>
+            void registerFunction(const std::string &name, std::function<R()> implementation);
+
+            template<typename A, typename R>
+            void registerFunction(const std::string &name, std::function<R(A)> implementation);
+
+            template<typename A, typename B, typename R>
+            void registerFunction(const std::string &name, std::function<R(A, B)> implementation);
+
+            template<typename A, typename B, typename C, typename R>
+            void registerFunction(const std::string &name, std::function<R(A, B, C)> implementation);
+
+            template<typename A, typename B, typename C, typename D, typename R>
+            void registerFunction(const std::string &name,
+                                  std::function<R(A, B, C, D)> implementation);
+
+        private :
+
+            // helper
+            std::any evaluate( const std::any input, std::shared_ptr<Frame> bindings );
+
+        public:
+            // Function-like detection (Java reference: line 1551)
+            bool isFunctionLike(const std::any &o) const;
+
+            // Input validation control
+            bool isValidateInput() const;
+            void setValidateInput(bool validateInput);
+
+            // Error handling
+            std::vector<std::exception_ptr> getErrors() const;
+
+            // Utility methods
+            static bool boolize(const std::any &value);
+
+        public:
+            std::unique_ptr<Parser> parser_;
+
+            static std::shared_ptr<Frame> staticFrame_;
+            static std::shared_ptr<Frame> getStaticFrame();
+            static void initializeBuiltinFunctions(std::shared_ptr<Frame> frame);
+
+            // New members for string constructor
+            std::shared_ptr<Parser::Symbol> expression_;
+
+            bool validateInput_ = false;
+            std::vector<std::exception_ptr> errors_;
+            int64_t timestamp_ = 0;
+
+            // Current evaluation context is stored in thread-local variables
+
+            // GroupEntry structure for object grouping (matches Java implementation)
+            struct GroupEntry
+            {
+                    std::any data;
+                    size_t exprIndex;
+            };
+
+            // Core evaluation method
+            std::any _evaluate(std::shared_ptr<Parser::Symbol> expr,
+                               const std::any &input,
                                std::shared_ptr<Frame> environment);
-    std::any evaluateGroupExpression(std::shared_ptr<Parser::Symbol> expr,
-                                     const std::any& input,
-                                     std::shared_ptr<Frame> environment);
-    std::any evaluateTransformExpression(std::shared_ptr<Parser::Symbol> expr,
-                                         const std::any& input,
-                                         std::shared_ptr<Frame> environment);
-    std::any evaluateApplyExpression(std::shared_ptr<Parser::Symbol> expr,
-                                     const std::any& input,
-                                     std::shared_ptr<Frame> environment);
-    std::any evaluatePartialApplication(std::shared_ptr<Parser::Symbol> expr,
-                                        const std::any& input,
+
+            // Expression evaluation methods
+            std::any evaluateLiteral(std::shared_ptr<Parser::Symbol> expr);
+            std::any evaluateName(std::shared_ptr<Parser::Symbol> expr,
+                                  const std::any &input,
+                                  std::shared_ptr<Frame> environment);
+            std::any evaluateVariable(std::shared_ptr<Parser::Symbol> expr,
+                                      const std::any &input,
+                                      std::shared_ptr<Frame> environment);
+            std::any evaluateBinary(std::shared_ptr<Parser::Symbol> expr,
+                                    const std::any &input,
+                                    std::shared_ptr<Frame> environment);
+            std::any evaluateUnary(std::shared_ptr<Parser::Symbol> expr,
+                                   const std::any &input,
+                                   std::shared_ptr<Frame> environment);
+            std::any evaluateFunction(std::shared_ptr<Parser::Symbol> expr,
+                                      const std::any &input,
+                                      std::shared_ptr<Frame> environment);
+            std::any evaluateFunctionWithContext(std::shared_ptr<Parser::Symbol> expr,
+                                                 const std::any &input,
+                                                 std::shared_ptr<Frame> environment,
+                                                 const std::any &applytoContext);
+            std::any evaluateRegex(std::shared_ptr<Parser::Symbol> expr,
+                                   const std::any &input,
+                                   std::shared_ptr<Frame> environment);
+            std::any evaluateWildcard(std::shared_ptr<Parser::Symbol> expr, const std::any &input);
+            std::any flatten(const std::any &arg, Utils::JList *flattened = nullptr);
+            std::any evaluateFilter(std::shared_ptr<Parser::Symbol> predicate,
+                                    const std::any &input,
+                                    std::shared_ptr<Frame> environment);
+            std::any evaluatePath(std::shared_ptr<Parser::Symbol> expr,
+                                  const std::any &input,
+                                  std::shared_ptr<Frame> environment);
+            std::any evaluateCondition(std::shared_ptr<Parser::Symbol> expr,
+                                       const std::any &input,
+                                       std::shared_ptr<Frame> environment);
+            std::any evaluateDescendant(std::shared_ptr<Parser::Symbol> expr,
+                                        const std::any &input,
                                         std::shared_ptr<Frame> environment);
+            void recurseDescendants(const std::any &input, std::vector<std::any> &results);
+            std::any evaluateApply(std::shared_ptr<Parser::Symbol> expr,
+                                   const std::any &input,
+                                   std::shared_ptr<Frame> environment);
+            std::any evaluateRange(std::shared_ptr<Parser::Symbol> expr,
+                                   const std::any &input,
+                                   std::shared_ptr<Frame> environment);
+            std::any evaluateBind(std::shared_ptr<Parser::Symbol> expr,
+                                  const std::any &input,
+                                  std::shared_ptr<Frame> environment);
+            std::any evaluateLambda(std::shared_ptr<Parser::Symbol> expr,
+                                    const std::any &input,
+                                    std::shared_ptr<Frame> environment);
+            std::any evaluateSort(std::shared_ptr<Parser::Symbol> expr,
+                                  const std::any &input,
+                                  std::shared_ptr<Frame> environment);
+            std::any evaluateTransform(std::shared_ptr<Parser::Symbol> expr,
+                                       const std::any &input,
+                                       std::shared_ptr<Frame> environment);
+            std::any evaluateParent(std::shared_ptr<Parser::Symbol> expr,
+                                    const std::any &input,
+                                    std::shared_ptr<Frame> environment);
+            std::any evaluateBlock(std::shared_ptr<Parser::Symbol> expr,
+                                   const std::any &input,
+                                   std::shared_ptr<Frame> environment);
 
-    std::shared_ptr<Frame> createFrameFromTuple(
-        std::shared_ptr<Frame> environment, const std::any& tupleAny);
-    std::any reduceTupleStream(const std::any& tupleStream);
+            // Binary operation evaluators
+            std::any evaluateNumericExpression(const std::any &lhs,
+                                               const std::any &rhs,
+                                               const std::string &op);
+            std::any evaluateComparisonExpression(const std::any &lhs,
+                                                  const std::any &rhs,
+                                                  const std::string &op);
+            bool deepEquals(const std::any &lhs, const std::any &rhs);
+            std::any evaluateEqualityExpression(const std::any &lhs,
+                                                const std::any &rhs,
+                                                const std::string &op);
+            std::any evaluateBooleanExpression(const std::any &lhs,
+                                               std::function<std::any()> rhs,
+                                               const std::string &op);
+            std::any evaluateStringConcat(const std::any &lhs, const std::any &rhs);
+            std::any evaluateRangeExpression(const std::any &lhs, const std::any &rhs);
+            std::any evaluateIncludesExpression(const std::any &lhs, const std::any &rhs);
 
-    // Conversion helpers between engine types and JSON
-    // Ordered variants preserve insertion order using nlohmann::ordered_json
-    static std::any orderedJsonToAny(const nlohmann::ordered_json& j);
-    static nlohmann::ordered_json anyToOrderedJson(const std::any& value);
-    // Unordered variants using nlohmann::json (key order may not be preserved)
-    static std::any jsonToAny(const nlohmann::json& j);
-    static nlohmann::json anyToJson(const std::any& value);
+            // Missing advanced evaluation methods from Java
+            std::any evaluateStages(const std::vector<std::shared_ptr<Parser::Symbol>> &stages,
+                                    const std::any &input,
+                                    std::shared_ptr<Frame> environment);
+            std::any evaluateStep(std::shared_ptr<Parser::Symbol> expr,
+                                  const std::any &input,
+                                  std::shared_ptr<Frame> environment,
+                                  bool lastStep = false);
+            std::any evaluateTupleStep(std::shared_ptr<Parser::Symbol> expr,
+                                       const Utils::JList &input,
+                                       const std::optional<Utils::JList> &tupleBindings,
+                                       std::shared_ptr<Frame> environment);
+            std::any evaluateGroupExpression(std::shared_ptr<Parser::Symbol> expr,
+                                             const std::any &input,
+                                             std::shared_ptr<Frame> environment);
+            std::any evaluateTransformExpression(std::shared_ptr<Parser::Symbol> expr,
+                                                 const std::any &input,
+                                                 std::shared_ptr<Frame> environment);
+            std::any evaluateApplyExpression(std::shared_ptr<Parser::Symbol> expr,
+                                             const std::any &input,
+                                             std::shared_ptr<Frame> environment);
+            std::any evaluatePartialApplication(std::shared_ptr<Parser::Symbol> expr,
+                                                const std::any &input,
+                                                std::shared_ptr<Frame> environment);
 
-    // Error code mappings
-    void initializeErrorCodes();
-};
+            std::shared_ptr<Frame> createFrameFromTuple(std::shared_ptr<Frame> environment,
+                                                        const std::any &tupleAny);
+            std::any reduceTupleStream(const std::any &tupleStream);
 
-// Global static methods
-std::any jsonata_evaluate(const std::string& expression, const std::any& input);
+            // Conversion helpers between engine types and JSON
+            // Ordered variants preserve insertion order using jsonata::backend::ordered_json
+            template<typename T>
+                requires isCompatible<T>
+            static std::any toAny(const T &j)
+            {
+                if (j.is_null())
+                    return std::any{};
+                if (j.is_boolean())
+                    return std::any(j.template get<bool>());
+                if (j.is_number_integer()) {
+                    // Preserve sign by using int64_t; for large unsigned, capture as
+                    // uint64_t
+                    int64_t si = 0;
+                    try {
+                        si = j.template get<int64_t>();
+                        return std::any(static_cast<int64_t>(si));
+                    } catch (...) {
+                    }
+                    uint64_t ui = j.template get<uint64_t>();
+                    return std::any(static_cast<uint64_t>(ui));
+                }
+                if (j.is_number_unsigned()) {
+                    uint64_t ui = j.template get<uint64_t>();
+                    return std::any(static_cast<uint64_t>(ui));
+                }
+                if (j.is_number_float())
+                    return std::any(j.template get<double>());
+                if (j.is_string())
+                    return std::any(j.template get<std::string>());
+                if (j.is_array()) {
+                    std::vector<std::any> out;
+                    out.reserve(j.size());
+                    jsonata::backend::copy(j, out, [](const T &el) { return toAny(el); });
+                    return out;
+                }
+                if (j.is_object()) {
+                    jsonata::backend::ordered_map<std::string, std::any> m;
+                    jsonata::backend::copy(j, m, [](const T &el) { return toAny(el); });
+                    return m;
+                }
+                return std::any{};
+            }
 
-// Template implementations (must be in header for templates)
+            template<typename T>
+                requires isCompatible<T>
+            static T fromAny(const std::any &value)
+            {
+                if (!value.has_value())
+                    return T();
 
-template <typename R>
-void Jsonata::registerFunction(const std::string& name,
-                               std::function<R()> implementation) {
-    auto wrapper = [implementation](const std::vector<std::any>&) -> std::any {
-        if constexpr (std::is_void_v<R>) {
-            implementation();
-            return std::any{};
-        } else {
-            return std::any(implementation());
-        }
+                // Canonicalize numeric types: convert doubles with no fractional part to
+                // integer types
+                try {
+                    if (Utils::isNumeric(value)) {
+                        std::any canon = Utils::convertNumber(value);
+                        if (canon.type() != value.type()) {
+                            return fromAny<T>(canon);
+                        }
+                    }
+                } catch (...) {
+                    // Ignore conversion errors here; fall back to original value
+                }
+
+                const std::type_info &type = value.type();
+                if (type == typeid(bool))
+                    return T(std::any_cast<bool>(value));
+                if (type == typeid(double))
+                    return T(std::any_cast<double>(value));
+                if (type == typeid(int64_t))
+                    return T(std::any_cast<int64_t>(value));
+                if (type == typeid(uint64_t))
+                    return T(std::any_cast<uint64_t>(value));
+                // Cross-platform support for additional integral types (e.g., long/long long)
+                if (type == typeid(long long))
+                    return T(static_cast<int64_t>(std::any_cast<long long>(value)));
+                if (type == typeid(unsigned long long))
+                    return T(static_cast<uint64_t>(std::any_cast<unsigned long long>(value)));
+                if (type == typeid(long))
+                    return T(static_cast<int64_t>(std::any_cast<long>(value)));
+                if (type == typeid(unsigned long))
+                    return T(static_cast<uint64_t>(std::any_cast<unsigned long>(value)));
+                if (type == typeid(int))
+                    return T(static_cast<int64_t>(std::any_cast<int>(value)));
+                if (type == typeid(unsigned int))
+                    return T(static_cast<uint64_t>(std::any_cast<unsigned int>(value)));
+                if (type == typeid(std::string))
+                    return T(std::any_cast<std::string>(value));
+                if (type == typeid(Utils::JList)) {
+                    auto arr = T::array();
+                    const auto &jlist = std::any_cast<const Utils::JList &>(value);
+                    jsonata::backend::copy(jlist, arr, [](const std::any &a) { return fromAny<T>(a); });
+                    return arr;
+                }
+                if (type == typeid(std::vector<std::any>)) {
+                    auto arr = T::array();
+                    const auto &vec = std::any_cast<const std::vector<std::any> &>(value);
+                    jsonata::backend::copy(vec, arr, [](const std::any &a) { return fromAny<T>(a); });
+                    return arr;
+                }
+                if (type == typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
+                    auto obj = T::object();
+                    const auto &map = std::
+                        any_cast<const jsonata::backend::ordered_map<std::string, std::any> &>(
+                            value);
+                    jsonata::backend::copy(map, obj, [](const std::any &a) { return fromAny<T>(a); });
+                    return obj;
+                }
+                if (type == typeid(std::shared_ptr<Parser::Symbol>)) {
+                    return T();
+                }
+                // Directly handle jsonata::backend::ordered_json returned from custom functions
+                if (type == typeid(T)) {
+                    return std::any_cast<T>(value);
+                }
+
+                return T();
+            }
+
+            template<typename from, typename to >
+                requires isCompatible<from> && isCompatible<to>
+            static to convert( const from & oj ) {
+                // Recursive lambda to convert ordered_json to json
+                std::function<to(const from & )> convert = [&](const from & j) -> to {
+                    if (j.is_null()) return to();
+                    if (j.is_boolean()) return to(j.template get<bool>());
+                    if (j.is_number_integer()) {
+                        int64_t si = 0;
+                        try {
+                            si = j.template get<int64_t>();
+                            return to(static_cast<int64_t>(si));
+                        } catch (...) {
+                        }
+                        uint64_t ui = j.template get<uint64_t>();
+                        return to(static_cast<uint64_t>(ui));
+                    }
+                    if (j.is_number_unsigned())
+                        return to(j.template get<uint64_t>());
+                    if (j.is_number_float())
+                        return to(j.template get<double>());
+                    if (j.is_string())
+                        return to(j.template get<std::string>());
+                    if (j.is_array()) {
+                        to arr = to::array();
+                        jsonata::backend::copy( j, arr, [&convert]( const from& el ) {
+                            return convert(el );
+                        });
+                        return arr;
+                    }
+                    if (j.is_object()) {
+                        to obj = to::object();
+                        jsonata::backend::copy( j, obj, [&convert]( const from& el ) {
+                            return convert(el );
+                        });
+                        return obj;
+                    }
+                    return to();
+                };
+
+                return convert(oj);
+            }
+
+            // static std::any toAny(const jsonata::backend::ordered_json &j);
+            // static jsonata::backend::ordered_json fromAny(const std::any &value);
+            // // Unordered variants using jsonata::backend::json (key order may not be preserved)
+            // static std::any jsonToAny(const jsonata::backend::json &j);
+            // static jsonata::backend::json anyToJson(const std::any &value);
+
+            // Error code mappings
+            void initializeErrorCodes();
     };
-    registerFunction(name, wrapper);
-}
 
-template <typename A, typename R>
-void Jsonata::registerFunction(const std::string& name,
-                               std::function<R(A)> implementation) {
-    auto wrapper = [implementation,
-                    name](const std::vector<std::any>& args) -> std::any {
-        if (args.empty()) {
-            throw JException("S0410", -1,
-                             "Function " + name + " expects 1 argument, got 0");
-        }
-        A arg = std::any_cast<A>(args[0]);
-        if constexpr (std::is_void_v<R>) {
-            implementation(arg);
-            return std::any{};
-        } else {
-            return std::any(implementation(arg));
-        }
-    };
-    registerFunction(name, wrapper);
-}
+    // Global static methods
+    std::any jsonata_evaluate(const std::string &expression, const std::any &input);
 
-template <typename A, typename B, typename R>
-void Jsonata::registerFunction(const std::string& name,
-                               std::function<R(A, B)> implementation) {
-    auto wrapper = [implementation,
-                    name](const std::vector<std::any>& args) -> std::any {
-        if (args.size() < 2) {
-            throw JException("S0410", -1,
-                             "Function " + name + " expects 2 arguments, got " +
-                                 std::to_string(args.size()));
-        }
-        A arg1 = std::any_cast<A>(args[0]);
-        B arg2 = std::any_cast<B>(args[1]);
-        if constexpr (std::is_void_v<R>) {
-            implementation(arg1, arg2);
-            return std::any{};
-        } else {
-            return std::any(implementation(arg1, arg2));
-        }
-    };
-    registerFunction(name, wrapper);
-}
+    // Template implementations (must be in header for templates)
 
-template <typename A, typename B, typename C, typename R>
-void Jsonata::registerFunction(const std::string& name,
-                               std::function<R(A, B, C)> implementation) {
-    auto wrapper = [implementation,
-                    name](const std::vector<std::any>& args) -> std::any {
-        if (args.size() < 3) {
-            throw JException("S0410", -1,
-                             "Function " + name + " expects 3 arguments, got " +
-                                 std::to_string(args.size()));
-        }
-        A arg1 = std::any_cast<A>(args[0]);
-        B arg2 = std::any_cast<B>(args[1]);
-        C arg3 = std::any_cast<C>(args[2]);
-        if constexpr (std::is_void_v<R>) {
-            implementation(arg1, arg2, arg3);
-            return std::any{};
-        } else {
-            return std::any(implementation(arg1, arg2, arg3));
-        }
-    };
-    registerFunction(name, wrapper);
-}
+    template<typename R>
+    void Jsonata::registerFunction(const std::string &name, std::function<R()> implementation)
+    {
+        auto wrapper = [implementation](const std::vector<std::any> &) -> std::any {
+            if constexpr (std::is_void_v<R>) {
+                implementation();
+                return std::any{};
+            } else {
+                return std::any(implementation());
+            }
+        };
+        registerFunction(name, wrapper);
+    }
 
-template <typename A, typename B, typename C, typename D, typename R>
-void Jsonata::registerFunction(const std::string& name,
-                               std::function<R(A, B, C, D)> implementation) {
-    auto wrapper = [implementation,
-                    name](const std::vector<std::any>& args) -> std::any {
-        if (args.size() < 4) {
-            throw JException("S0410", -1,
-                             "Function " + name + " expects 4 arguments, got " +
-                                 std::to_string(args.size()));
-        }
-        A arg1 = std::any_cast<A>(args[0]);
-        B arg2 = std::any_cast<B>(args[1]);
-        C arg3 = std::any_cast<C>(args[2]);
-        D arg4 = std::any_cast<D>(args[3]);
-        if constexpr (std::is_void_v<R>) {
-            implementation(arg1, arg2, arg3, arg4);
-            return std::any{};
-        } else {
-            return std::any(implementation(arg1, arg2, arg3, arg4));
-        }
-    };
-    registerFunction(name, wrapper);
-}
+    template<typename A, typename R>
+    void Jsonata::registerFunction(const std::string &name, std::function<R(A)> implementation)
+    {
+        auto wrapper = [implementation, name](const std::vector<std::any> &args) -> std::any {
+            if (args.empty()) {
+                throw JException("S0410", -1, "Function " + name + " expects 1 argument, got 0");
+            }
+            A arg = std::any_cast<A>(args[0]);
+            if constexpr (std::is_void_v<R>) {
+                implementation(arg);
+                return std::any{};
+            } else {
+                return std::any(implementation(arg));
+            }
+        };
+        registerFunction(name, wrapper);
+    }
 
-}  // namespace jsonata
+    template<typename A, typename B, typename R>
+    void Jsonata::registerFunction(const std::string &name, std::function<R(A, B)> implementation)
+    {
+        auto wrapper = [implementation, name](const std::vector<std::any> &args) -> std::any {
+            if (args.size() < 2) {
+                throw JException("S0410",
+                                 -1,
+                                 "Function " + name + " expects 2 arguments, got "
+                                     + std::to_string(args.size()));
+            }
+            A arg1 = std::any_cast<A>(args[0]);
+            B arg2 = std::any_cast<B>(args[1]);
+            if constexpr (std::is_void_v<R>) {
+                implementation(arg1, arg2);
+                return std::any{};
+            } else {
+                return std::any(implementation(arg1, arg2));
+            }
+        };
+        registerFunction(name, wrapper);
+    }
+
+    template<typename A, typename B, typename C, typename R>
+    void Jsonata::registerFunction(const std::string &name, std::function<R(A, B, C)> implementation)
+    {
+        auto wrapper = [implementation, name](const std::vector<std::any> &args) -> std::any {
+            if (args.size() < 3) {
+                throw JException("S0410",
+                                 -1,
+                                 "Function " + name + " expects 3 arguments, got "
+                                     + std::to_string(args.size()));
+            }
+            A arg1 = std::any_cast<A>(args[0]);
+            B arg2 = std::any_cast<B>(args[1]);
+            C arg3 = std::any_cast<C>(args[2]);
+            if constexpr (std::is_void_v<R>) {
+                implementation(arg1, arg2, arg3);
+                return std::any{};
+            } else {
+                return std::any(implementation(arg1, arg2, arg3));
+            }
+        };
+        registerFunction(name, wrapper);
+    }
+
+    template<typename A, typename B, typename C, typename D, typename R>
+    void Jsonata::registerFunction(const std::string &name,
+                                   std::function<R(A, B, C, D)> implementation)
+    {
+        auto wrapper = [implementation, name](const std::vector<std::any> &args) -> std::any {
+            if (args.size() < 4) {
+                throw JException("S0410",
+                                 -1,
+                                 "Function " + name + " expects 4 arguments, got "
+                                     + std::to_string(args.size()));
+            }
+            A arg1 = std::any_cast<A>(args[0]);
+            B arg2 = std::any_cast<B>(args[1]);
+            C arg3 = std::any_cast<C>(args[2]);
+            D arg4 = std::any_cast<D>(args[3]);
+            if constexpr (std::is_void_v<R>) {
+                implementation(arg1, arg2, arg3, arg4);
+                return std::any{};
+            } else {
+                return std::any(implementation(arg1, arg2, arg3, arg4));
+            }
+        };
+        registerFunction(name, wrapper);
+    }
+} // namespace jsonata

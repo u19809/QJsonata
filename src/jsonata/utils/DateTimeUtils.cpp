@@ -205,6 +205,10 @@ std::string DateTimeUtils::numberToWords(int64_t value, bool ordinal) {
 
 std::string DateTimeUtils::lookup(int64_t num, bool prev, bool ord) {
     std::string words = "";
+    if( num < 0 ) {
+        // negative numbers trigger 'out of range' exception in windows
+        num = 0;
+    }
     if (num <= 19) {
         words = (prev ? " and " : "") + (ord ? ordinals[num] : few[num]);
     } else if (num < 100) {
@@ -672,7 +676,7 @@ std::string DateTimeUtils::formatDateTime(int64_t millis,
     int64_t offsetHours = 0;
     int64_t offsetMinutes = 0;
 
-    if (!timezone.empty()) {
+    if (!timezone.empty() && timezone != "UTC") {
         try {
             int64_t offset = std::stoi(timezone);
             offsetHours = offset / 100;

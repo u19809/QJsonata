@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include <nlohmann/json.hpp>
+#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <memory>
 #include <string>
@@ -51,7 +51,7 @@ TEST_F(SignatureTest, testParametersAreConvertedToArrays) {
     };
     expr.registerFunction("greet", greetFn);
 
-    auto result = expr.evaluate(nullptr);
+    auto result = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_string());
     EXPECT_EQ(result.get<std::string>(), "[[1], [null], [3], [null]]");
 }
@@ -66,8 +66,8 @@ TEST_F(SignatureTest, testError) {
     };
     expr.registerFunction("foo", fooFn);
 
-    EXPECT_THROW(expr.evaluate(nullptr), jsonata::JException);
-    EXPECT_THROW(expr.evaluate(nlohmann::ordered_json(true)), jsonata::JException);
+    EXPECT_THROW(expr.evaluate<JSONATA_TEST_BACKEND>(nullptr), jsonata::JException);
+    EXPECT_THROW(expr.evaluate(JSONATA_TEST_BACKEND(true)), jsonata::JException);
 }
 
 TEST_F(SignatureTest, testVarArg) {
@@ -88,7 +88,7 @@ TEST_F(SignatureTest, testVarArg) {
     };
     expression.registerFunction("sumvar", sumFn);
 
-    auto result = expression.evaluate(nullptr);
+    auto result = expression.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_number_integer());
     EXPECT_EQ(result.get<long long>(), 6);
 }
@@ -139,7 +139,7 @@ TEST_F(SignatureTest, testVarArgMany) {
     };
     expr.registerFunction("customArgs", customArgsFn);
 
-    auto result = expr.evaluate(nullptr);
+    auto result = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     ASSERT_TRUE(result.is_string());
     EXPECT_EQ(result.get<std::string>(), "[test, [1, 2, 3, 4], 3]");
 }

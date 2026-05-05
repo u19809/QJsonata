@@ -464,12 +464,12 @@ static bool isDeepEqualForDistinct(const std::any& lhs, const std::any& rhs) {
 
         // Compare direct map objects
         if (lhs.type() ==
-            typeid(nlohmann::ordered_map<std::string, std::any>)) {
+            typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
             const auto& leftMap =
-                std::any_cast<nlohmann::ordered_map<std::string, std::any>>(
+                std::any_cast<jsonata::backend::ordered_map<std::string, std::any>>(
                     lhs);
             const auto& rightMap =
-                std::any_cast<nlohmann::ordered_map<std::string, std::any>>(
+                std::any_cast<jsonata::backend::ordered_map<std::string, std::any>>(
                     rhs);
 
             if (leftMap.size() != rightMap.size()) {
@@ -846,9 +846,9 @@ bool Functions::isLambda(const std::any& value) {
 
 // Deprecated: type-check helpers moved to Utils
 
-nlohmann::ordered_map<std::string, Functions::FunctionEntry>
+jsonata::backend::ordered_map<std::string, Functions::FunctionEntry>
 Functions::getFunctionRegistry() {
-    static nlohmann::ordered_map<std::string, FunctionEntry>
+    static jsonata::backend::ordered_map<std::string, FunctionEntry>
         registryWithSignatures = {
             // Aggregation functions
             {"sum", FunctionEntry(
@@ -1259,11 +1259,11 @@ Functions::getFunctionRegistry() {
                          (args.size() >= 2 && isString(args[1]))
                              ? std::any_cast<std::string>(args[1])
                              : "";
-                     nlohmann::ordered_map<std::string, std::any> options;
+                     jsonata::backend::ordered_map<std::string, std::any> options;
                      if (args.size() >= 3) {
                          try {
                              options = std::any_cast<
-                                 nlohmann::ordered_map<std::string, std::any>>(
+                                 jsonata::backend::ordered_map<std::string, std::any>>(
                                  args[2]);
                          } catch (const std::bad_any_cast&) {
                              // Ignore invalid options
@@ -1794,9 +1794,9 @@ std::optional<bool> Functions::toBoolean(const std::any& arg) {
             result = std::any_cast<bool>(arg);
             // Check for map/object
         } else if (arg.type() ==
-                   typeid(nlohmann::ordered_map<std::string, std::any>)) {
+                   typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
             const auto& map = std::any_cast<
-                const nlohmann::ordered_map<std::string, std::any>&>(arg);
+                const jsonata::backend::ordered_map<std::string, std::any>&>(arg);
             result = !map.empty();
         }
         // Functions are falsy
@@ -2187,7 +2187,7 @@ std::any Functions::merge(const Utils::JList& args) {
     }
 
     try {
-        nlohmann::ordered_map<std::string, std::any> result;
+        jsonata::backend::ordered_map<std::string, std::any> result;
 
         // Convert to vector if needed
         Utils::JList inputArray;
@@ -2204,9 +2204,9 @@ std::any Functions::merge(const Utils::JList& args) {
                 try {
                     // Handle direct map
                     if (item.type() ==
-                        typeid(nlohmann::ordered_map<std::string, std::any>)) {
+                        typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
                         const auto& map =
-                            std::any_cast<const nlohmann::ordered_map<
+                            std::any_cast<const jsonata::backend::ordered_map<
                                 std::string, std::any>&>(item);
                         for (const auto& entry : map) {
                             result[entry.first] = entry.second;
@@ -2312,11 +2312,11 @@ std::any Functions::spread(const Utils::JList& args) {
             // Handle object - create an array with one object per key-value
             // pair
         } else if (arg.type() ==
-                   typeid(nlohmann::ordered_map<std::string, std::any>)) {
+                   typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
             const auto& map = std::any_cast<
-                const nlohmann::ordered_map<std::string, std::any>&>(arg);
+                const jsonata::backend::ordered_map<std::string, std::any>&>(arg);
             for (const auto& entry : map) {
-                nlohmann::ordered_map<std::string, std::any> obj;
+                jsonata::backend::ordered_map<std::string, std::any> obj;
                 obj[entry.first] = entry.second;
                 result.push_back(obj);
             }
@@ -2347,13 +2347,13 @@ std::any Functions::sift(const Utils::JList& args) {
     }
 
     try {
-        nlohmann::ordered_map<std::string, std::any> result;
+        jsonata::backend::ordered_map<std::string, std::any> result;
 
         // Handle direct map
         if (objectArg.type() ==
-            typeid(nlohmann::ordered_map<std::string, std::any>)) {
+            typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
             const auto& map = std::any_cast<
-                const nlohmann::ordered_map<std::string, std::any>&>(objectArg);
+                const jsonata::backend::ordered_map<std::string, std::any>&>(objectArg);
             for (const auto& entry : map) {
                 // Prepare arguments for the predicate function
                 auto funcArgs = hofFuncArgs(predicateArg, entry.second,
@@ -2422,9 +2422,9 @@ void Functions::stringifyInternal(std::ostringstream& os, const std::any& arg,
             if (prettify && !vec.empty()) os << indent;
             os << "]";
         } else if (arg.type() ==
-                   typeid(nlohmann::ordered_map<std::string, std::any>)) {
+                   typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
             auto map =
-                std::any_cast<nlohmann::ordered_map<std::string, std::any>>(
+                std::any_cast<jsonata::backend::ordered_map<std::string, std::any>>(
                     arg);
             os << "{";
             if (prettify && !map.empty()) os << "\n";
@@ -3005,10 +3005,10 @@ Utils::JList Functions::keys(const std::any& arg) {
                 result.push_back(key);
             }
         } else if (arg.type() ==
-                   typeid(nlohmann::ordered_map<std::string, std::any>)) {
+                   typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
             // Java: if (arg instanceof Map) - return keySet
             const auto& map = std::any_cast<
-                const nlohmann::ordered_map<std::string, std::any>&>(arg);
+                const jsonata::backend::ordered_map<std::string, std::any>&>(arg);
             for (const auto& [key, value] : map) {
                 result.push_back(key);
             }
@@ -3038,9 +3038,9 @@ std::any Functions::each(const std::any& obj, const std::any& func) {
 
         // Handle direct map<string, any>
         if (obj.type() ==
-            typeid(nlohmann::ordered_map<std::string, std::any>)) {
+            typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
             const auto& map = std::any_cast<
-                const nlohmann::ordered_map<std::string, std::any>&>(obj);
+                const jsonata::backend::ordered_map<std::string, std::any>&>(obj);
             // Java: for (var key : obj.keySet())
             for (const auto& entry : map) {
                 const std::string& key = entry.first;
@@ -3613,7 +3613,7 @@ std::string Functions::formatScientificNotation(double value,
 
 std::optional<std::string> Functions::formatNumber(
     double value, const std::string& picture,
-    const nlohmann::ordered_map<std::string, std::any>& options) {
+    const jsonata::backend::ordered_map<std::string, std::any>& options) {
     if (std::isnan(value) || std::isinf(value)) {
         return std::nullopt;
     }
@@ -3958,6 +3958,14 @@ std::any Functions::sortWithContext(const Utils::JList& args,
 
         // Sort with lambda comparator using stable_sort - Java reference uses
         // stable sort
+
+        // MAJOR CHANGED.  in MSVC the sort function checks that IF the comparator returns
+        // false for a > b then b > a must NOT also return false.  this is not the case when
+        // a == b.
+        // to keep compatibility with java sorting but not mess with c++ sorting we keep the
+        // c++ sorting convention.  so NOT reverse the result.  This yields an sorted
+        // array but in the reverted order as in java.  so we just reverse the array at the end
+
         std::stable_sort(
             result.begin(), result.end(),
             [&](const std::any& a, const std::any& b) {
@@ -3970,6 +3978,10 @@ std::any Functions::sortWithContext(const Utils::JList& args,
                     auto compareResult = instance->apply(
                         comparator, compareArgs, input, environment);
 
+                    // PROBLEM with MSVC
+                    // MSVC checks that if the comparator returns true for a>b then
+                    // b < a Must be false. So we must take are of == cases.
+
                     // Convert result to boolean for comparison
                     // Java reference: if swap=true, return 1 (a > b), else
                     // return -1 (a < b) In C++ std::sort: return true if a < b
@@ -3977,7 +3989,7 @@ std::any Functions::sortWithContext(const Utils::JList& args,
                     // a > b, so return false
                     auto boolResult = toBoolean(compareResult);
                     if (boolResult.has_value()) {
-                        return !boolResult.value();  // Invert the result to
+                        return boolResult.value();  // Invert the result to
                                                      // match Java logic
                     }
 
@@ -3989,6 +4001,45 @@ std::any Functions::sortWithContext(const Utils::JList& args,
                     return defaultComparator(a, b);
                 }
             });
+
+        // now revert the result
+        std::reverse( result.begin(), result.end() );
+
+        // std::stable_sort(
+        //     result.begin(), result.end(),
+        //     [&](const std::any& a, const std::any& b) {
+        //         try {
+        //             // Java reference lines 1955-1961: funcApply(comparator,
+        //             // Arrays.asList(o1, o2)) boolean swap = (boolean)
+        //             // funcApply(comparator, Arrays.asList(o1, o2)); if (swap)
+        //             // return 1; else return -1;
+        //             Utils::JList compareArgs = {a, b};
+        //             auto compareResult = instance->apply(
+        //                 comparator, compareArgs, input, environment);
+
+        //             // PROBLEM with MSVC
+        //             // MSVC checks that if the comparator returns true for a>b then
+        //             // b < a Must be false. So we must take are of == cases.
+
+        //             // Convert result to boolean for comparison
+        //             // Java reference: if swap=true, return 1 (a > b), else
+        //             // return -1 (a < b) In C++ std::sort: return true if a < b
+        //             // So we need to invert: if lambda returns true (swap), then
+        //             // a > b, so return false
+        //             auto boolResult = toBoolean(compareResult);
+        //             if (boolResult.has_value()) {
+        //                 return !boolResult.value();  // Invert the result to
+        //                                              // match Java logic
+        //             }
+
+        //             // Fallback to default comparison if lambda returns
+        //             // undefined
+        //             return defaultComparator(a, b);
+        //         } catch (...) {
+        //             // Fallback to default comparison on error
+        //             return defaultComparator(a, b);
+        //         }
+        //     });
     } else {
         // Natural ordering for homogeneous arrays - same logic as basic sort
         // function
@@ -4105,11 +4156,11 @@ std::any Functions::lookup(const std::any& input, const std::string& key) {
 
             return result.empty() ? std::any{} : std::any(result);
         } else if (input.type() ==
-                   typeid(nlohmann::ordered_map<std::string, std::any>)) {
+                   typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
             // Java: if (input instanceof Map) - get key and handle null
             // detection
             const auto& map = std::any_cast<
-                const nlohmann::ordered_map<std::string, std::any>&>(input);
+                const jsonata::backend::ordered_map<std::string, std::any>&>(input);
             auto it = map.find(key);
             if (it != map.end()) {
                 auto result = it->second;
@@ -5007,7 +5058,7 @@ Utils::JList Functions::evaluateMatcher(const std::regex& pattern,
 
     for (; iter != end; ++iter) {
         const std::smatch& smatch = *iter;
-        nlohmann::ordered_map<std::string, std::any> match;
+        jsonata::backend::ordered_map<std::string, std::any> match;
         match["match"] = smatch.str();
         match["index"] = static_cast<int64_t>(smatch.position());
 
@@ -5408,9 +5459,9 @@ std::string Functions::safeReplaceAllFn(const std::string& str,
     return finalResult;
 }
 
-nlohmann::ordered_map<std::string, std::any> Functions::toJsonataMatch(
+jsonata::backend::ordered_map<std::string, std::any> Functions::toJsonataMatch(
     const std::smatch& match) {
-    nlohmann::ordered_map<std::string, std::any> result;
+    jsonata::backend::ordered_map<std::string, std::any> result;
 
     result["match"] = match.str();
 
@@ -5514,7 +5565,7 @@ std::string Functions::rightPad(const std::string& str, int64_t size,
 // formatNumber options processing helper functions
 
 Functions::FormatSymbols Functions::processOptionsArg(
-    const nlohmann::ordered_map<std::string, std::any>& options) {
+    const jsonata::backend::ordered_map<std::string, std::any>& options) {
     FormatSymbols symbols;  // Use default values
 
     if (options.empty()) {

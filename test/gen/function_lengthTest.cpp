@@ -26,7 +26,7 @@ TEST_F(function_lengthTest, case003) {
     EXPECT_NO_THROW(runCase("jsonata/test/test-suite/groups/function-length/case003.json"));
 }
 
-// $length(\"\\uD834\\uDD1E\")
+// $length(\\\"\\\\uD834\\\\uDD1E\\\")
 TEST_F(function_lengthTest, case004) {
     EXPECT_NO_THROW(runCase("jsonata/test/test-suite/groups/function-length/case004.json"));
 }

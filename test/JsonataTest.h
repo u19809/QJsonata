@@ -6,7 +6,7 @@
 #include <optional>
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include <nlohmann/json.hpp>
+#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 
 namespace jsonata {
@@ -16,7 +16,7 @@ public:
     struct TestOverride {
         std::string name;
         std::optional<bool> ignoreError;
-        std::optional<nlohmann::ordered_json> alternateResult;
+        std::optional<JSONATA_TEST_BACKEND> alternateResult;
         std::optional<std::string> alternateCode;
         std::string reason;
     };
@@ -35,22 +35,22 @@ private:
 
     // Helper methods
     bool testExpr(const std::string& expr, 
-                  nlohmann::ordered_json data, 
-                  const std::map<std::string, nlohmann::ordered_json>& bindings,
-                  nlohmann::ordered_json expected, 
+                  JSONATA_TEST_BACKEND data,
+                  const std::map<std::string, JSONATA_TEST_BACKEND>& bindings,
+                  JSONATA_TEST_BACKEND expected,
                   const std::optional<std::string>& code,
                   const std::optional<long>& timelimit = std::nullopt,
                   const std::optional<int>& depth = std::nullopt,
                   bool unordered = false);
 
-    nlohmann::ordered_json toJson(const std::string& jsonStr);
-    nlohmann::ordered_json readJson(const std::string& name);
+    JSONATA_TEST_BACKEND toJson(const std::string& jsonStr);
+    JSONATA_TEST_BACKEND readJson(const std::string& name);
     std::string preprocessJsonContent(const std::string& content);
     
     bool runTestSuite(const std::string& name);
-    bool runTestCase(const std::string& name, const std::map<std::string, nlohmann::ordered_json>& testDef);
+    bool runTestCase(const std::string& name, const std::map<std::string, JSONATA_TEST_BACKEND>& testDef);
     
-    void replaceNulls(nlohmann::ordered_json& o);
+    void replaceNulls(JSONATA_TEST_BACKEND& o);
 
     static TestOverrides* getTestOverrides();
     TestOverride* getOverrideForTest(const std::string& name);

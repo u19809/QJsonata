@@ -1559,7 +1559,7 @@ void Parser::pushAncestry(std::shared_ptr<Symbol> result,
     if (!value || !result) return;
 
     if (!value->seekingParentList.empty() || value->type == "parent") {
-        auto slots = value->seekingParentList;
+        auto slotList = value->seekingParentList;
         if (value->type == "parent") {
             // Add parent slot if available
             if (value->slot.has_value()) {
@@ -1567,7 +1567,7 @@ void Parser::pushAncestry(std::shared_ptr<Symbol> result,
                     auto parentSlot =
                         std::any_cast<std::shared_ptr<Symbol>>(value->slot);
                     if (parentSlot) {
-                        slots.push_back(parentSlot);
+                        slotList.push_back(parentSlot);
                     }
                 } catch (const std::bad_any_cast&) {
                     // Handle conversion error
@@ -1576,10 +1576,10 @@ void Parser::pushAncestry(std::shared_ptr<Symbol> result,
         }
 
         if (result->seekingParentList.empty()) {
-            result->seekingParentList = slots;
+            result->seekingParentList = slotList;
         } else {
             result->seekingParentList.insert(result->seekingParentList.end(),
-                                             slots.begin(), slots.end());
+                                             slotList.begin(), slotList.end());
         }
     }
 }
@@ -1591,7 +1591,7 @@ void Parser::resolveAncestry(std::shared_ptr<Symbol> path) {
     auto lastStep = path->steps[index];
     if (!lastStep) return;
 
-    auto slots = lastStep->seekingParentList;
+    auto slotList = lastStep->seekingParentList;
 
     if (lastStep->type == "parent") {
         // Add parent slot if available
@@ -1600,7 +1600,7 @@ void Parser::resolveAncestry(std::shared_ptr<Symbol> path) {
                 auto parentSlot =
                     std::any_cast<std::shared_ptr<Symbol>>(lastStep->slot);
                 if (parentSlot) {
-                    slots.push_back(parentSlot);
+                    slotList.push_back(parentSlot);
                 }
             } catch (const std::bad_any_cast&) {
                 // Handle conversion error
@@ -1608,7 +1608,7 @@ void Parser::resolveAncestry(std::shared_ptr<Symbol> path) {
         }
     }
 
-    for (auto slot : slots) {
+    for (auto slot : slotList) {
         if (!slot) continue;
         index = path->steps.size() - 2;
         while (slot && slot->level > 0) {

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include <nlohmann/json.hpp>
+#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <memory>
 #include <string>
@@ -19,7 +19,7 @@ protected:
 
 TEST_F(ThreadTest, testReuse) {
     Jsonata expr("a");
-    nlohmann::ordered_json data = nlohmann::ordered_json::object({{"a", 1}});
+    JSONATA_TEST_BACKEND data = JSONATA_TEST_BACKEND::object({{"a", 1}});
 
     auto result1 = expr.evaluate(data);
     ASSERT_TRUE(result1.is_number());
@@ -32,9 +32,9 @@ TEST_F(ThreadTest, testReuse) {
 
 TEST_F(ThreadTest, testNow) {
     Jsonata now("$now()");
-    auto r1 = now.evaluate(nullptr);
+    auto r1 = now.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     std::this_thread::sleep_for(std::chrono::milliseconds(42));
-    auto r2 = now.evaluate(nullptr);
+    auto r2 = now.evaluate<JSONATA_TEST_BACKEND>(nullptr);
 
     ASSERT_TRUE(r1.is_string());
     ASSERT_TRUE(r2.is_string());
@@ -59,13 +59,13 @@ TEST_F(ThreadTest, testReuseWithVariable) {
     expr.registerFunction("wait", waitFn);
 
     auto outerFuture = std::async(std::launch::async, [&expr]() {
-        nlohmann::ordered_json data = nlohmann::ordered_json::object({{"a", 100}});
+        JSONATA_TEST_BACKEND data = JSONATA_TEST_BACKEND::object({{"a", 100}});
         return expr.evaluate(data);
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-    nlohmann::ordered_json data30 = nlohmann::ordered_json::object({{"a", 30}});
+    JSONATA_TEST_BACKEND data30 = JSONATA_TEST_BACKEND::object({{"a", 30}});
     auto result30 = expr.evaluate(data30);
     ASSERT_TRUE(result30.is_number());
     EXPECT_EQ(result30.get<int>(), 30);
@@ -78,8 +78,8 @@ TEST_F(ThreadTest, testReuseWithVariable) {
 TEST_F(ThreadTest, testAddEnvAndInput) {
     Jsonata expr("$eval('$count($keys($))')");
 
-    nlohmann::ordered_json obj1 = nlohmann::ordered_json::object({{"input", 1}});
-    nlohmann::ordered_json obj2 = nlohmann::ordered_json::object({{"input", 2}, {"other", 3}});
+    JSONATA_TEST_BACKEND obj1 = JSONATA_TEST_BACKEND::object({{"input", 1}});
+    JSONATA_TEST_BACKEND obj2 = JSONATA_TEST_BACKEND::object({{"input", 2}, {"other", 3}});
 
     const int count = 200; // keep the test fast
 

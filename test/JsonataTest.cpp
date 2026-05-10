@@ -27,9 +27,9 @@ namespace jsonata
     }
 
     bool JsonataTest::testExpr(const std::string &expr,
-                               JSONATA_TEST_BACKEND data,
-                               const std::map<std::string, JSONATA_TEST_BACKEND> &bindings,
-                               JSONATA_TEST_BACKEND expected,
+                               jsonata::backend<JSONATA_TEST_BACKEND> data,
+                               const std::map<std::string, jsonata::backend<JSONATA_TEST_BACKEND>> &bindings,
+                               jsonata::backend<JSONATA_TEST_BACKEND> expected,
                                const std::optional<std::string> &code,
                                const std::optional<long> &timelimit,
                                const std::optional<int> &depth,
@@ -54,7 +54,7 @@ namespace jsonata
             // This matches Java logic exactly: create binding frame even for empty bindings map
             bindingFrame = jsonata.createFrame();
             for (const auto &[key, value] : bindings) {
-                bindingFrame->bind(key, Jsonata::toAny(value));
+                bindingFrame->bind(key, Jsonata::toAny(*value));
             }
 
             // Java reference: set runtime bounds only when explicitly specified in test JSON
@@ -75,25 +75,27 @@ namespace jsonata
                 success = false; // Expected an error but didn't get one
             }
 
-            bool expectedIsNull = expected.is_null();
-            bool resultIsNull = result.is_null();
+            bool expectedIsNull = expected.isNull();
+            bool resultIsNull = result.isNull();
 
             if (!expectedIsNull) {
-                // Compare using canonical jsonata::backend::json (unordered object semantics)
-                jsonata::backend::json exp = jsonata::backend::json::parse(expected.dump());
-                jsonata::backend::json res = jsonata::backend::json::parse(result.dump());
+                // Compare using canonical jsonata::json (unordered object semantics)
+                // jsonata::json exp = jsonata::json::parse(expected.dump());
+                // jsonata::json res = jsonata::json::parse(result.dump());
+                auto exp = jsonata::backend<JSONATA_TEST_BACKEND>::parse(expected.dump());
+                auto res = jsonata::backend<JSONATA_TEST_BACKEND>::parse(result.dump());
 
-                if (unordered && exp.is_array() && res.is_array()) {
+                if (unordered && exp.isArray() && res.isArray()) {
                     // Simple unordered compare via multiset of dumps
-                    if (exp.size() != res.size())
+                    if (jsonata::backend(exp).size() != jsonata::backend(res).size())
                         success = false;
                     else {
                         std::multiset<std::string> a, b;
-                        jsonata::backend::forAll(exp, [&a](auto k, auto v) {
-                            jsonata::backend::dump( v );
+                        exp.forAll( [&a](auto k, auto v) {
+                            v.dump();
                         });
-                        jsonata::backend::forAll(res, [&b](auto k, auto v) {
-                            jsonata::backend::dump( v );
+                        exp.forAll( [&b](auto k, auto v) {
+                            v.dump();
                         });
                         // for (const auto& el : exp) a.insert(el.dump());
                         // for (const auto& el : res) b.insert(el.dump());
@@ -151,9 +153,9 @@ namespace jsonata
         return success;
     }
 
-    JSONATA_TEST_BACKEND JsonataTest::toJson(const std::string &jsonStr)
+    jsonata::backend<JSONATA_TEST_BACKEND> JsonataTest::toJson(const std::string &jsonStr)
     {
-        return JSONATA_TEST_BACKEND::parse(jsonStr);
+        return jsonata::backend<JSONATA_TEST_BACKEND>::parse(jsonStr);
     }
 
     // Helper function to preprocess JSON content to fix common issues
@@ -221,7 +223,7 @@ namespace jsonata
         return result;
     }
 
-    JSONATA_TEST_BACKEND JsonataTest::readJson(const std::string &name)
+    jsonata::backend<JSONATA_TEST_BACKEND> JsonataTest::readJson(const std::string &name)
     {
         std::ifstream file(name);
         if (!file.is_open()) {
@@ -233,12 +235,12 @@ namespace jsonata
         std::string content = buffer.str();
 
         try {
-                return JSONATA_TEST_BACKEND::parse(content);
+                return jsonata::backend<JSONATA_TEST_BACKEND>::parse(content);
         } catch (const std::exception &) {
             // Try a light preprocessing pass
             try {
                 std::string processedContent = preprocessJsonContent(content);
-                return JSONATA_TEST_BACKEND::parse(processedContent);
+                return jsonata::backend<JSONATA_TEST_BACKEND>::parse(processedContent);
             } catch (const std::exception &) {
                 // Fallback: salvage minimal fields from malformed JSON (e.g., invalid \u surrogates)
                 // Extract expr
@@ -258,20 +260,20 @@ namespace jsonata
                     return src.substr(start, end - start);
                 };
 
-                JSONATA_TEST_BACKEND fallback;
+                jsonata::backend<JSONATA_TEST_BACKEND> fallback;
                 if (auto exprStr = findValueString(content, "expr")) {
                     // Keep raw expression including escapes (Jsonata parser will handle \u escapes)
-                    jsonata::backend::set( fallback, "expr", *exprStr );
+                    fallback.set( "expr", *exprStr );
                 }
                 if (auto datasetStr = findValueString(content, "dataset")) {
-                    jsonata::backend::set( fallback, "dataset", *datasetStr );
+                    fallback.set( "dataset", *datasetStr );
                 }
                 if (auto codeStr = findValueString(content, "code")) {
-                    JSONATA_TEST_BACKEND err;
-                    jsonata::backend::set( err, "code", *codeStr );
-                    jsonata::backend::set( fallback, "error", err );
+                    jsonata::backend<JSONATA_TEST_BACKEND> err;
+                    err.set( "code", *codeStr );
+                    fallback.set( "error", err );
                 }
-                if (fallback.empty()) {
+                if (fallback.isEmpty()) {
                     // As a last resort, rethrow original error
                     throw;
                 }
@@ -296,7 +298,7 @@ namespace jsonata
     {
         try {
             auto cases = readJson(name);
-            if (!cases.is_array()) {
+            if (!cases.isArray()) {
                 throw std::runtime_error("Test file does not contain array: " + name);
             }
 
@@ -306,13 +308,13 @@ namespace jsonata
             }
 
             auto testCase = caseArray[subNr];
-            if (!testCase.is_object()) {
+            if (!testCase.isObject()) {
                 throw std::runtime_error("Test case is not an object");
             }
 
             const auto &testObj = testCase;
-            std::map<std::string, JSONATA_TEST_BACKEND> testDef;
-            jsonata::backend::copy(testObj, testDef);
+            std::map<std::string, jsonata::backend<JSONATA_TEST_BACKEND>> testDef;
+            jsonata::copy(testObj, testDef);
             // for (auto it = testObj.begin(); it != testObj.end(); ++it) testDef[it.key()] = it.value();
 
             if (!runTestCase(name + "_" + std::to_string(subNr), testDef)) {
@@ -333,53 +335,36 @@ namespace jsonata
             bool success = true;
 
             auto testCase = readJson(name);
-            if (testCase.is_null()) {
+            if (testCase.isNull()) {
                 return false;
             }
 
-            if (testCase.is_array()) {
+            if (testCase.isArray()) {
                 // Some cases contain a list of test cases
                 const auto &testArray = testCase;
 
-                jsonata::backend::
+                jsonata::
                     forAll(testArray, [this, &name, &success](const std::string &k, auto v) {
-                        using VType = std::decay_t<decltype(v)>;
-                        if constexpr (IsNlohmann<VType>) {
-                            if (v.is_object()) {
-                                std::map<std::string, JSONATA_TEST_BACKEND> testDefMap;
-                                jsonata::backend::copy(v, testDefMap);
-                                // for (auto it = testDef.begin(); it != testDef.end(); ++it) testDefMap[it.key()] = it.value();
-                                std::cout << "Running sub-test" << std::endl;
-                                success &= runTestCase(name, testDefMap);
-                            }
-                        } else if constexpr( IsQt<VType> ){
-                            if (v.isObject()) {
-                                std::map<std::string, JSONATA_TEST_BACKEND> testDefMap;
-                                jsonata::backend::copy(v, testDefMap);
-                                // for (auto it = testDef.begin(); it != testDef.end(); ++it) testDefMap[it.key()] = it.value();
-                                std::cout << "Running sub-test" << std::endl;
-                                success &= runTestCase(name, testDefMap);
-                            }
-                        } else {
-                            // This triggers ONLY if none of the above branches are taken
-                            static_assert(sizeof(VType) == 0,
-                                          "Unsupported type: Must be Qt JSON, nlohmann JSON");
-                        }
+                        std::map<std::string, jsonata::backend<JSONATA_TEST_BACKEND>> testDefMap;
+                        jsonata::copy(v, testDefMap);
+                        // for (auto it = testDef.begin(); it != testDef.end(); ++it) testDefMap[it.key()] = it.value();
+                        std::cout << "Running sub-test" << std::endl;
+                        success &= runTestCase(name, testDefMap);
                     });
 
                 // for (const auto& testDef : testArray) {
-                //     if (testDef.is_object()) {
+                //     if (testDef.isObject()) {
                 //         std::map<std::string, JSONATA_TEST_BACKEND> testDefMap;
-                //         jsonata::backend::copy( testDef, testDefMap, [](JSONATA_TEST_BACKEND & v ) { return v; });
+                //         jsonata::copy( testDef, testDefMap, [](JSONATA_TEST_BACKEND & v ) { return v; });
                 //         // for (auto it = testDef.begin(); it != testDef.end(); ++it) testDefMap[it.key()] = it.value();
                 //         std::cout << "Running sub-test" << std::endl;
                 //         success &= runTestCase(name, testDefMap);
                 //     }
                 // }
-            } else if (testCase.is_object()) {
+            } else if (testCase.isObject()) {
                 const auto &testObj = testCase;
-                std::map<std::string, JSONATA_TEST_BACKEND> testDefMap;
-                jsonata::backend::copy(testObj, testDefMap);
+                std::map<std::string, jsonata::backend<JSONATA_TEST_BACKEND>> testDefMap;
+                jsonata::copy(testObj, testDefMap);
                 // for (auto it = testObj.begin(); it != testObj.end(); ++it) testDefMap[it.key()] = it.value();
                 success &= runTestCase(name, testDefMap);
             }
@@ -391,14 +376,14 @@ namespace jsonata
         }
     }
 
-    void JsonataTest::replaceNulls(JSONATA_TEST_BACKEND &o)
+    void JsonataTest::replaceNulls(jsonata::backend<JSONATA_TEST_BACKEND> &o)
     {
         // NOT USED ????
-        // if (o.is_array()) {
+        // if (o.isArray()) {
         //     for (auto& item : o) replaceNulls(item);
-        // } else if (o.is_object()) {
+        // } else if (o.isObject()) {
         //     for (auto it = o.begin(); it != o.end(); ++it) replaceNulls(it.value());
-        // } else if (o.is_null()) {
+        // } else if (o.isNull()) {
         //     o = "__JSON_NULL_VALUE__";
         // }
     }
@@ -440,8 +425,8 @@ namespace jsonata
             std::string content = buffer.str();
             file.close();
 
-            auto jsonValue = JSONATA_TEST_BACKEND::parse(content);
-            if (!jsonValue.is_object()) {
+            auto jsonValue = jsonata::backend<JSONATA_TEST_BACKEND>::parse(content);
+            if (!jsonValue.isObject()) {
                 std::cerr << "Warning: Invalid test-overrides.json format, using empty overrides"
                           << std::endl;
                 testOverrides = new TestOverrides();
@@ -450,7 +435,7 @@ namespace jsonata
             // const auto &root = jsonValue;
 
             // auto overrideIt = root.find("override");
-            // if (overrideIt == root.end() || !overrideIt->is_array()) {
+            // if (overrideIt == root.end() || !overrideIt->isArray()) {
             //     std::cerr << "Warning: Missing or invalid 'override' array in test-overrides.json, using empty overrides" << std::endl;
             //     testOverrides = new TestOverrides();
             //     return testOverrides;
@@ -458,10 +443,9 @@ namespace jsonata
             // const auto& overrideArray = *overrideIt;
 
             testOverrides = new TestOverrides();
-            jsonata::backend::json overrideArray;
+            auto overrideArray = jsonata::backend<JSONATA_TEST_BACKEND>::array();
 
-            if( ! jsonata::backend::getPropertyValueOfType<std::vector<int>>(
-                jsonValue,
+            if( ! jsonValue.template getPropertyValueOfType<std::vector<int>>(
                 "override",
                 overrideArray) ) {
                 std::cerr << "Warning: Missing or invalid 'override' array in test-overrides.json, " "using empty overrides"
@@ -469,52 +453,47 @@ namespace jsonata
                 return testOverrides;
             }
 
-            jsonata::backend::forAll(overrideArray, [](auto k, auto item) {
+            overrideArray.forAll( [](auto k, auto item) {
                 using ItemType = std::decay_t<decltype(item)>;
 
-                if (! jsonata::backend::isObject( item ) ){
+                if (! item.isObject() ){
                     return;
                 }
 
                 const auto &overrideObj = item;
                 TestOverride to;
 
-                jsonata::backend::getPropertyValueOfType<std::string>(
-                    overrideObj,
+                overrideObj.template getPropertyValueOfType<std::string>(
                     "name",
                     to.name
                     );
 
-                jsonata::backend::getPropertyValueOfType<bool>(
-                    overrideObj,
+                overrideObj.template getPropertyValueOfType<bool>(
                     "ignoreError",
                     to.ignoreError
                     );
 
-                jsonata::backend::getPropertyValueOfType<jsonata::backend::json>(
-                    overrideObj,
+                overrideObj.template getPropertyValueOfType<jsonata::backend<JSONATA_TEST_BACKEND>>(
                     "alternateResult",
                     to.alternateResult
                     );
 
-                jsonata::backend::getPropertyValueOfType<std::string>(
-                    overrideObj,
+                overrideObj.template getPropertyValueOfType<std::string>(
                     "alternateCode",
                     to.alternateCode
                     );
 
-                jsonata::backend::getPropertyValueOfType<std::string>(
-                    overrideObj,
+                overrideObj.template getPropertyValueOfType<std::string>(
                     "reason",
                     to.reason
                     );
 
-                // if (nameIt != overrideObj.end() && nameIt->is_string()) {
+                // if (nameIt != overrideObj.end() && nameIt->isString()) {
                 //     to.name = nameIt->template get<std::string>();
                 // }
 
                 // auto ignoreErrorIt = overrideObj.find("ignoreError");
-                // if (ignoreErrorIt != overrideObj.end() && ignoreErrorIt->is_boolean()) {
+                // if (ignoreErrorIt != overrideObj.end() && ignoreErrorIt->isBool()) {
                 //     to.ignoreError = ignoreErrorIt->template get<bool>();
                 // }
 
@@ -524,12 +503,12 @@ namespace jsonata
                 // }
 
                 // auto alternateCodeIt = overrideObj.find("alternateCode");
-                // if (alternateCodeIt != overrideObj.end() && alternateCodeIt->is_string()) {
+                // if (alternateCodeIt != overrideObj.end() && alternateCodeIt->isString()) {
                 //     to.alternateCode = alternateCodeIt->template get<std::string>();
                 // }
 
                 // auto reasonIt = overrideObj.find("reason");
-                // if (reasonIt != overrideObj.end() && reasonIt->is_string()) {
+                // if (reasonIt != overrideObj.end() && reasonIt->isString()) {
                 //     to.reason = reasonIt->template get<std::string>();
                 // }
 
@@ -539,18 +518,18 @@ namespace jsonata
             // testOverrides = new TestOverrides();
             // const auto& overrideArray = *overrideIt;
             // for (const auto& item : overrideArray) {
-            //     if (!item.is_object()) continue;
+            //     if (!item.isObject()) continue;
 
             //     const auto& overrideObj = item;
             //     TestOverride to;
 
             //     auto nameIt = overrideObj.find("name");
-            //     if (nameIt != overrideObj.end() && nameIt->is_string()) {
+            //     if (nameIt != overrideObj.end() && nameIt->isString()) {
             //         to.name = nameIt->get<std::string>();
             //     }
 
             //     auto ignoreErrorIt = overrideObj.find("ignoreError");
-            //     if (ignoreErrorIt != overrideObj.end() && ignoreErrorIt->is_boolean()) {
+            //     if (ignoreErrorIt != overrideObj.end() && ignoreErrorIt->isBool()) {
             //         to.ignoreError = ignoreErrorIt->get<bool>();
             //     }
 
@@ -560,12 +539,12 @@ namespace jsonata
             //     }
 
             //     auto alternateCodeIt = overrideObj.find("alternateCode");
-            //     if (alternateCodeIt != overrideObj.end() && alternateCodeIt->is_string()) {
+            //     if (alternateCodeIt != overrideObj.end() && alternateCodeIt->isString()) {
             //         to.alternateCode = alternateCodeIt->get<std::string>();
             //     }
 
             //     auto reasonIt = overrideObj.find("reason");
-            //     if (reasonIt != overrideObj.end() && reasonIt->is_string()) {
+            //     if (reasonIt != overrideObj.end() && reasonIt->isString()) {
             //         to.reason = reasonIt->get<std::string>();
             //     }
 
@@ -611,7 +590,7 @@ namespace jsonata
 
     bool JsonataTest::
         runTestCase(const std::string &name,
-                    const std::map<std::string, JSONATA_TEST_BACKEND> &testDef)
+                    const std::map<std::string, jsonata::backend<JSONATA_TEST_BACKEND>> &testDef)
     {
         try {
             testCases++;
@@ -622,13 +601,13 @@ namespace jsonata
             // Extract expression
             auto exprIt = testDef.find("expr");
             std::string expr;
-            if (exprIt != testDef.end() && exprIt->second.is_string()) {
+            if (exprIt != testDef.end() && exprIt->second.isString()) {
                 expr = exprIt->second.get<std::string>();
                 // DEBUG output removed to prevent binary characters in stdout
             } else {
                 // Check for expr-file
                 auto exprFileIt = testDef.find("expr-file");
-                if (exprFileIt != testDef.end() && exprFileIt->second.is_string()) {
+                if (exprFileIt != testDef.end() && exprFileIt->second.isString()) {
                     std::string exprFile = exprFileIt->second.get<std::string>();
                     size_t lastSlash = name.find_last_of("/");
                     std::string fileName = (lastSlash != std::string::npos)
@@ -647,42 +626,41 @@ namespace jsonata
             // Extract dataset
             std::string dataset;
             auto datasetIt = testDef.find("dataset");
-            if (datasetIt != testDef.end() && datasetIt->second.is_string()) {
+            if (datasetIt != testDef.end() && datasetIt->second.isString()) {
                 dataset = datasetIt->second.get<std::string>();
             }
 
             // Extract bindings
-            std::map<std::string, JSONATA_TEST_BACKEND> bindings;
+            std::map<std::string, jsonata::backend<JSONATA_TEST_BACKEND>> bindings;
             auto bindingsIt = testDef.find("bindings");
-            if (bindingsIt != testDef.end() && bindingsIt->second.is_object()) {
+            if (bindingsIt != testDef.end() && bindingsIt->second.isObject()) {
                 const auto &bindingsObj = bindingsIt->second;
-                jsonata::backend::copy(bindingsObj, bindings);
+                jsonata::copy(bindingsObj, bindings);
                 // for (auto it = bindingsObj.begin(); it != bindingsObj.end(); ++it) {
                 //     bindings[it.key()] = it.value();
                 // }
             }
 
             // Extract result
-            JSONATA_TEST_BACKEND result; // null by default
+            jsonata::backend<JSONATA_TEST_BACKEND> result; // null by default
             auto resultIt = testDef.find("result");
             if (resultIt != testDef.end()) {
-                result = resultIt->second;
+                result = std::move(resultIt->second);
             }
 
             // Extract error code
             std::optional<std::string> code;
             auto codeIt = testDef.find("code");
-            if (codeIt != testDef.end() && codeIt->second.is_string()) {
+            if (codeIt != testDef.end() && codeIt->second.isString()) {
                 code = codeIt->second.get<std::string>();
             } else {
                 auto errorIt = testDef.find("error");
-                if (errorIt != testDef.end() && errorIt->second.is_object()) {
-                    jsonata::backend::getPropertyValueOfType<std::string>(
-                        errorIt->second,
+                if (errorIt != testDef.end() && errorIt->second.isObject()) {
+                    errorIt->second.getPropertyValueOfType<std::string>(
                         "code",
                         code );
                     // auto errorCodeIt = errorObj.find("code");
-                    // if (errorCodeIt != errorObj.end() && errorCodeIt->is_string()) {
+                    // if (errorCodeIt != errorObj.end() && errorCodeIt->isString()) {
                     //     code = errorCodeIt->get<std::string>();
                     // }
                 }
@@ -691,7 +669,7 @@ namespace jsonata
             // Extract unordered flag
             bool unordered = false;
             auto unorderedIt = testDef.find("unordered");
-            if (unorderedIt != testDef.end() && unorderedIt->second.is_boolean()) {
+            if (unorderedIt != testDef.end() && unorderedIt->second.isBool()) {
                 unordered = unorderedIt->second.get<bool>();
             }
 
@@ -702,11 +680,11 @@ namespace jsonata
             auto timelimitIt = testDef.find("timelimit");
             if (timelimitIt != testDef.end()) {
                 const auto &t = timelimitIt->second;
-                if (t.is_number_float()) {
+                if (t.isFloat()) {
                     timelimit = static_cast<long>(t.get<double>());
-                } else if (t.is_number_integer()) {
+                } else if (t.isInteger()) {
                     timelimit = static_cast<long>(t.get<long long>());
-                } else if (t.is_number_unsigned()) {
+                } else if (t.isUnsignedInteger()) {
                     timelimit = static_cast<long>(t.get<unsigned long long>());
                 }
             }
@@ -714,28 +692,28 @@ namespace jsonata
             auto depthIt = testDef.find("depth");
             if (depthIt != testDef.end()) {
                 const auto &d = depthIt->second;
-                if (d.is_number_float()) {
+                if (d.isFloat()) {
                     depth = static_cast<int>(d.get<double>());
-                } else if (d.is_number_integer()) {
+                } else if (d.isInteger()) {
                     depth = static_cast<int>(d.get<long long>());
-                } else if (d.is_number_unsigned()) {
+                } else if (d.isUnsignedInteger()) {
                     depth = static_cast<int>(d.get<unsigned long long>());
                 }
             }
 
             // Extract data
-            JSONATA_TEST_BACKEND data;
+            jsonata::backend<JSONATA_TEST_BACKEND> data;
             auto dataIt = testDef.find("data");
             if (dataIt != testDef.end()) {
                 std::cout << "DEBUG: Using inline data from test definition" << std::endl;
-                data = dataIt->second;
+                data = std::move(dataIt->second);
             } else if (!dataset.empty()) {
                 std::cout << "DEBUG: Loading dataset: " << dataset << std::endl;
                 try {
                     std::string datasetPath = "jsonata/test/test-suite/datasets/" + dataset
                                               + ".json";
                     std::cout << "DEBUG: Dataset path: " << datasetPath << std::endl;
-                    data = readJson(datasetPath);
+                    data = std::move(readJson(datasetPath));
                     std::cout << "DEBUG: Dataset loaded successfully" << std::endl;
                 } catch (const std::exception &e) {
                     std::cerr << "Failed to load dataset: " << dataset << " - " << e.what()

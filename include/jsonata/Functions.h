@@ -20,7 +20,6 @@
 
 #include <any>
 #include <functional>
-#include "jsonata/backends.h"
 #include <optional>
 #include <regex>
 #include <sstream>
@@ -133,7 +132,7 @@ class Functions {
                                           const std::string& char_ = " ");
     static std::optional<std::string> formatNumber(
         double value, const std::string& picture,
-        const jsonata::backend::ordered_map<std::string, std::any>& options = {});
+        const std::unordered_map<std::string, std::any>& options = {});
     static std::any shuffle(const Utils::JList& args);
     static std::any lookup(const std::any& input, const std::string& key);
     static void error(const std::string& message);
@@ -195,7 +194,7 @@ class Functions {
             : implementation(impl), signature(sig) {}
     };
 
-    static jsonata::backend::ordered_map<std::string, FunctionEntry>
+    static std::unordered_map<std::string, FunctionEntry>
     getFunctionRegistry();
     static std::any applyFunction(const std::string& name,
                                   const Utils::JList& args);
@@ -233,7 +232,7 @@ class Functions {
     static std::string safeReplaceAllFn(const std::string& str,
                                         const std::regex& pattern,
                                         const std::any& func);
-    static jsonata::backend::ordered_map<std::string, std::any> toJsonataMatch(
+    static std::unordered_map<std::string, std::any> toJsonataMatch(
         const std::smatch& match);
     static std::string encodeURI(const std::string& uri);
     static std::string leftPad(const std::string& str, int64_t size,
@@ -257,7 +256,7 @@ class Functions {
     };
 
     static FormatSymbols processOptionsArg(
-        const jsonata::backend::ordered_map<std::string, std::any>& options);
+        const std::unordered_map<std::string, std::any>& options);
     static std::string getFormattingCharacter(const std::string& value,
                                               const std::string& propertyName,
                                               bool isChar);

@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(JSONATA_NLOHMANN_BACKEND "Build qjsonata with nlohmann json backend" OFF)
-option(JSONATA_QT_BACKEND "Build qjsonata with Qt json backend" OFF)
+option(JSONATA_QTJSON_BACKEND "Build qjsonata with Qt json backend" OFF)
+option(JSONATA_QTVARIANT_BACKEND "Build qjsonata with Qt QVariant backend" OFF)
 
 include(GNUInstallDirs)
 include(FetchContent)
@@ -31,15 +32,23 @@ if( JSONATA_NLOHMANN_BACKEND )
         # Mark that we used FetchContent
         set(JSONATA_USED_FETCHCONTENT_JSON TRUE)
     endif()
-    list( APPEND JSONATA_ENABLED_BACKENDS nlohmann::ordered_json nlohmann::json)
+    list( APPEND JSONATA_ENABLED_BACKENDS nlohmann::unordered_json nlohmann::json )
+    set( JSONATA_NLOHMANN_ENABLED true )
 endif()
 
-if( JSONATA_QT_BACKEND )
+if( JSONATA_QTJSON_BACKEND OR JSONATA_QTVARIANT_BACKEND )
     find_package(Qt6 REQUIRED COMPONENTS Core)
     if(NOT Qt6_FOUND)
         error( "Cannot find Qt >=6.10" )
     endif()
-    list( APPEND JSONATA_ENABLED_BACKENDS jsonata::backend::json )
+    if( JSONATA_QTJSON_BACKEND  )
+        list( APPEND JSONATA_ENABLED_BACKENDS QJsonValue )
+        set( JSONATA_QTJSON_ENABLED true )
+    endif()
+    if( JSONATA_QTVARIANT_BACKEND )
+        list( APPEND JSONATA_ENABLED_BACKENDS QVariant )
+        set( JSONATA_QTVARIANT_ENABLED true )
+    endif()
 endif()
 
 # Collect source files
@@ -87,9 +96,6 @@ target_include_directories(qjsonata PUBLIC
 )
 
 if( JSONATA_NLOHMANN_BACKEND )
-    # tell sources to compile NLOHMANN backend
-    target_compile_definitions( qjsonata PUBLIC JSONATA_NLOHMANN_ENABLED )
-
     # nlohmann_json is used from public headers, so propagate it PUBLIC.
     # Ensure the exported target only records the imported name in the install
     # interface to avoid referencing non-exported build targets.
@@ -109,19 +115,33 @@ if( JSONATA_NLOHMANN_BACKEND )
             $<INSTALL_INTERFACE:nlohmann_json::nlohmann_json>
         )
     endif()
+    target_compile_definitions(qjsonata PUBLIC JSONATA_NLOHMANN_ENABLED )
 endif()
 
-if( JSONATA_QT_BACKEND )
-    # tell sources to compile NLOHMANN backend
-    target_compile_definitions( qjsonata PUBLIC JSONATA_QT_ENABLED )
-
+if( JSONATA_QTJSON_BACKEND OR JSONATA_QTVARIANT_BACKEND )
     target_link_libraries(qjsonata PUBLIC Qt6::Core)
+    if( JSONATA_QTJSON_BACKEND )
+        target_compile_definitions(qjsonata PUBLIC JSONATA_QTJSON_ENABLED )
+    endif()
+    if( JSONATA_QTVARIANT_BACKEND )
+        target_compile_definitions(qjsonata PUBLIC JSONATA_QTVARIANT_ENABLED )
+    endif()
 endif()
 
 # Optionally build tests
 option(JSONATA_BUILD_TESTS "Build QJSONata C++ tests" OFF)
 
 if(JSONATA_BUILD_TESTS)
+    # for testing at least one backend needs to be enabled
+
+    # 1. Check the length of the list
+    list(LENGTH JSONATA_ENABLED_BACKENDS LIST_LEN)
+
+    # 2. If the length is 0, throw a fatal error
+    if(LIST_LEN EQUAL 0)
+        message(FATAL_ERROR "At least one backend must be enabled.")
+    endif()
+
     # Download GoogleTest if not already present
     # See https://google.github.io/googletest/quickstart-cmake.html
     FetchContent_Declare(
@@ -149,6 +169,11 @@ if(JSONATA_BUILD_TESTS)
         test/TypesTest.cpp
     )
 
+    # Create test generator executable
+    add_executable(qgenerate test/Generate.cpp
+        include/jsonata/backend.h)
+    target_link_libraries(qgenerate qjsonata)
+
     # Create main test executables
     foreach( BE IN LISTS JSONATA_ENABLED_BACKENDS )
         # 1. Strip the extension to create a clean executable name
@@ -172,14 +197,12 @@ if(JSONATA_BUILD_TESTS)
             gtest
             Threads::Threads
         )
+        # will select the last backend to test but we only need one to generate
+        target_compile_definitions(qgenerate PRIVATE
+            JSONATA_TEST_BACKEND=${BE}
+        )
     endforeach()
 
-    # Create test generator executable
-    add_executable(qgenerate test/Generate.cpp)
-    target_link_libraries(qgenerate qjsonata)
-    target_compile_definitions(qgenerate PRIVATE
-        JSONATA_TEST_BACKEND=${BE}
-    )
 
     # Custom command to generate test files
     add_custom_command(

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <memory>
 #include <string>
@@ -22,7 +21,7 @@ TEST_F(ParseIntegerTest, parseIntegerNoError) {
     Jsonata expr("$parseInteger('xyz','000')");
     auto res = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     // Should return null for invalid input
-    EXPECT_TRUE(res.is_null());
+    EXPECT_TRUE(res.isNull());
 }
 
 TEST_F(ParseIntegerTest, DISABLED_parseIntegerError) {
@@ -33,7 +32,7 @@ TEST_F(ParseIntegerTest, DISABLED_parseIntegerError) {
     EXPECT_THROW({
         Jsonata expr("$parseInteger('000','xyz')");
         auto res = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-        EXPECT_TRUE(res.is_null());
+        EXPECT_TRUE(res.isNull());
     }, std::exception);
 }
 

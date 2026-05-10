@@ -17,7 +17,6 @@
  * limitations under the License.
  */
 #include "jsonata/JException.h"
-#include "jsonata/backends.h"
 #include <regex>
 #include <sstream>
 

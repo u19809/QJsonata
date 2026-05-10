@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <sstream>
 #include <any>
-#include "jsonata/backends.h"
+#include <jsonata/backend.h>
 
 namespace fs = std::filesystem;
 
@@ -113,8 +113,10 @@ public:
 
     // Extract expression from test case for comment
     static std::string getExpressionComment(const JSONATA_TEST_BACKEND& testCase) {
-        if (testCase.is_object() && testCase.contains("expr") && testCase["expr"].is_string())
-            return escapeString(testCase["expr"].get<std::string>());
+        if (jsonata::backend(testCase).isObject() &&
+            jsonata::backend(testCase).contains("expr") &&
+            jsonata::backend(testCase)["expr"].isString() )
+            return escapeString(jsonata::backend(testCase)["expr"].get<std::string>());
         return "";
     }
 
@@ -235,11 +237,11 @@ public:
         
         try {
             // First try parsing the content as-is
-            auto jsonValue = JSONATA_TEST_BACKEND::parse(content);
+            auto jsonValue = jsonata::backend<JSONATA_TEST_BACKEND>::parse(content);
 
             int testCount = 0;
 
-            if (jsonValue.is_array()) {
+            if (jsonValue.isArray()) {
                 for (size_t i = 0; i < jsonValue.size(); ++i) {
                     std::string expr = getExpressionComment(jsonValue[i]);
                     generateTestMethod(output, suiteName, fileName, static_cast<int>(i), expr);
@@ -259,10 +261,10 @@ public:
             
             try {
                 std::string processedContent = preprocessJsonContent(content);
-                auto jsonValue = JSONATA_TEST_BACKEND::parse(processedContent);
+                auto jsonValue = jsonata::backend<JSONATA_TEST_BACKEND>::parse(processedContent);
                 int testCount = 0;
-                if (jsonValue.is_array()) {
-                    for (size_t i = 0; i < jsonValue.size(); ++i) {
+                if (jsonata::backend(jsonValue).isArray()) {
+                    for (size_t i = 0; i < jsonata::backend(jsonValue).size(); ++i) {
                         std::string expr = getExpressionComment(jsonValue[i]);
                         generateTestMethod(output, suiteName, fileName, static_cast<int>(i), expr);
                         testCount++;

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <memory>
 #include <string>
@@ -46,13 +45,13 @@ TEST_F(SerializationTest, testJFunction) {
 
     auto result = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
     // null result serializes to "null"
-    EXPECT_TRUE(result.is_null());
+    EXPECT_TRUE(result.isNull());
 }
 
 TEST_F(SerializationTest, testSerializable) {
     SerializableExpression expr("$hi() & '!'");
     auto result = expr.jsonata->evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_string());
+    ASSERT_TRUE(result.isString());
     EXPECT_EQ(result.get<std::string>(), "hello world!");
 
     std::string serialized = expr.serialize();
@@ -61,8 +60,8 @@ TEST_F(SerializationTest, testSerializable) {
     auto originalResult = expr.jsonata->evaluate<JSONATA_TEST_BACKEND>(nullptr);
     auto cloneResult = clone.jsonata->evaluate<JSONATA_TEST_BACKEND>(nullptr);
 
-    ASSERT_TRUE(originalResult.is_string());
-    ASSERT_TRUE(cloneResult.is_string());
+    ASSERT_TRUE(originalResult.isString());
+    ASSERT_TRUE(cloneResult.isString());
     EXPECT_EQ(originalResult.get<std::string>(), cloneResult.get<std::string>());
 }
 

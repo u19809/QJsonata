@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <memory>
 #include <string>
@@ -19,14 +18,14 @@ protected:
 
 TEST_F(ThreadTest, testReuse) {
     Jsonata expr("a");
-    JSONATA_TEST_BACKEND data = JSONATA_TEST_BACKEND::object({{"a", 1}});
+    JSONATA_TEST_BACKEND data = jsonata::backend<JSONATA_TEST_BACKEND>::object({{"a", 1}});
 
     auto result1 = expr.evaluate(data);
-    ASSERT_TRUE(result1.is_number());
+    ASSERT_TRUE(result1.isNumber());
     EXPECT_EQ(result1.get<int>(), 1);
 
     auto result2 = expr.evaluate(data);
-    ASSERT_TRUE(result2.is_number());
+    ASSERT_TRUE(result2.isNumber());
     EXPECT_EQ(result2.get<int>(), 1);
 }
 
@@ -36,8 +35,8 @@ TEST_F(ThreadTest, testNow) {
     std::this_thread::sleep_for(std::chrono::milliseconds(42));
     auto r2 = now.evaluate<JSONATA_TEST_BACKEND>(nullptr);
 
-    ASSERT_TRUE(r1.is_string());
-    ASSERT_TRUE(r2.is_string());
+    ASSERT_TRUE(r1.isString());
+    ASSERT_TRUE(r2.isString());
     EXPECT_NE(r1.get<std::string>(), r2.get<std::string>());
 }
 
@@ -59,27 +58,27 @@ TEST_F(ThreadTest, testReuseWithVariable) {
     expr.registerFunction("wait", waitFn);
 
     auto outerFuture = std::async(std::launch::async, [&expr]() {
-        JSONATA_TEST_BACKEND data = JSONATA_TEST_BACKEND::object({{"a", 100}});
+        JSONATA_TEST_BACKEND data = jsonata::backend<JSONATA_TEST_BACKEND>::object({{"a", 100}});
         return expr.evaluate(data);
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-    JSONATA_TEST_BACKEND data30 = JSONATA_TEST_BACKEND::object({{"a", 30}});
+    JSONATA_TEST_BACKEND data30 = jsonata::backend<JSONATA_TEST_BACKEND>::object({{"a", 30}});
     auto result30 = expr.evaluate(data30);
-    ASSERT_TRUE(result30.is_number());
+    ASSERT_TRUE(result30.isNumber());
     EXPECT_EQ(result30.get<int>(), 30);
 
     auto outerResult = outerFuture.get();
-    ASSERT_TRUE(outerResult.is_number());
+    ASSERT_TRUE(outerResult.isNumber());
     EXPECT_EQ(outerResult.get<int>(), 100);
 }
 
 TEST_F(ThreadTest, testAddEnvAndInput) {
     Jsonata expr("$eval('$count($keys($))')");
 
-    JSONATA_TEST_BACKEND obj1 = JSONATA_TEST_BACKEND::object({{"input", 1}});
-    JSONATA_TEST_BACKEND obj2 = JSONATA_TEST_BACKEND::object({{"input", 2}, {"other", 3}});
+    JSONATA_TEST_BACKEND obj1 = jsonata::backend<JSONATA_TEST_BACKEND>::object({{"input", 1}});
+    JSONATA_TEST_BACKEND obj2 = jsonata::backend<JSONATA_TEST_BACKEND>::object({{"input", 2}, {"other", 3}});
 
     const int count = 200; // keep the test fast
 
@@ -88,7 +87,7 @@ TEST_F(ThreadTest, testAddEnvAndInput) {
         int sum = 0;
         for (int i = 0; i < count; i++) {
             auto result = expr.evaluate(obj1);
-            if (result.is_number()) sum += result.get<int>();
+            if (result.isNumber()) sum += result.get<int>();
         }
         return sum;
     });
@@ -96,7 +95,7 @@ TEST_F(ThreadTest, testAddEnvAndInput) {
     int sum = 0;
     for (int i = 0; i < count; i++) {
         auto result = expr.evaluate(obj2);
-        if (result.is_number()) sum += result.get<int>();
+        if (result.isNumber()) sum += result.get<int>();
     }
 
     int outerSum = outerFuture.get();

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 
 namespace jsonata {
@@ -18,18 +17,18 @@ protected:
 
 TEST_F(ArrayTest, testNegativeIndex) {
     Jsonata expr1("item[-1]");
-    auto input1 = JSONATA_TEST_BACKEND::parse(R"({"item": []})");
+    auto input1 = jsonata::backend<JSONATA_TEST_BACKEND>::parse(R"({"item": []})");
     auto result1 = expr1.evaluate(input1);
-    EXPECT_TRUE(result1.is_null());
+    EXPECT_TRUE(result1.isNull());
 
     Jsonata expr2("$[-1]");
-    auto result2 = expr2.evaluate(JSONATA_TEST_BACKEND::array());
-    EXPECT_TRUE(result2.is_null());
+    auto result2 = expr2.evaluate(jsonata::backend<JSONATA_TEST_BACKEND>::array());
+    EXPECT_TRUE(result2.isNull());
 }
 
 TEST_F(ArrayTest, testArray) {
     // Create test data equivalent to Java: Map.of("key", Arrays.asList(Map.of("x", "y"), Map.of("a", "b")))
-    auto data = JSONATA_TEST_BACKEND::parse(R"({"key": [{"x": "y"}, {"a": "b"}]})");
+    auto data = jsonata::backend<JSONATA_TEST_BACKEND>::parse(R"({"key": [{"x": "y"}, {"a": "b"}]})");
 
     // Test first expression: {'key': $append($.[{'x': 'y'}],$.[{'a': 'b'}])}
     Jsonata expr1("{'key': $append($.[{'x': 'y'}],$.[{'a': 'b'}])}");
@@ -48,7 +47,7 @@ TEST_F(ArrayTest, DISABLED_filterTest) {
     // This test is disabled as in the Java version
     Jsonata expr("($arr := [{'x':1}, {'x':2}];$arr[x=$number(variable.field)])");
 
-    auto inputData = JSONATA_TEST_BACKEND::parse(R"({"variable": {"field": "1"}})");
+    auto inputData = jsonata::backend<JSONATA_TEST_BACKEND>::parse(R"({"variable": {"field": "1"}})");
 
     auto result = expr.evaluate(inputData);
     EXPECT_TRUE(result != nullptr);
@@ -56,29 +55,29 @@ TEST_F(ArrayTest, DISABLED_filterTest) {
 
 TEST_F(ArrayTest, testIndex) {
     Jsonata expr("($x:=['a','b']; $x#$i.$i)");
-    auto result1 = expr.evaluate(JSONATA_TEST_BACKEND(1));
-    auto expected = JSONATA_TEST_BACKEND::parse("[0, 1]");
+    auto result1 = expr.evaluate(jsonata::backend<JSONATA_TEST_BACKEND>::create(1));
+    auto expected = jsonata::backend<JSONATA_TEST_BACKEND>::parse("[0, 1]");
     EXPECT_EQ(result1.dump(), expected.dump());
 
-    auto result2 = expr.evaluate(JSONATA_TEST_BACKEND(nullptr));
+    auto result2 = expr.evaluate(jsonata::backend<JSONATA_TEST_BACKEND>(nullptr));
     EXPECT_EQ(result2.dump(), expected.dump());
 }
 
 TEST_F(ArrayTest, testWildcard) {
     Jsonata expr("*");
-    auto input = JSONATA_TEST_BACKEND::parse(R"([{"x": 1}])");
+    auto input = jsonata::backend<JSONATA_TEST_BACKEND>::parse(R"([{"x": 1}])");
     auto result = expr.evaluate(input);
-    auto expected = JSONATA_TEST_BACKEND::parse(R"({"x": 1})");
+    auto expected = jsonata::backend<JSONATA_TEST_BACKEND>::parse(R"({"x": 1})");
     EXPECT_EQ(result.dump(), expected.dump());
 }
 
 TEST_F(ArrayTest, testWildcardFilter) {
-    auto data = JSONATA_TEST_BACKEND::parse(
+    auto data = jsonata::backend<JSONATA_TEST_BACKEND>::parse(
         R"([{"value": {"Name": "Cell1", "Product": "Product1"}}, {"value": {"Name": "Cell2", "Product": "Product2"}}])");
 
     Jsonata expression("*[value.Product = 'Product1']");
     auto result1 = expression.evaluate(data);
-    auto expected = JSONATA_TEST_BACKEND::parse(
+    auto expected = jsonata::backend<JSONATA_TEST_BACKEND>::parse(
         R"({"value": {"Name": "Cell1", "Product": "Product1"}})");
     EXPECT_EQ(result1.dump(), expected.dump());
 

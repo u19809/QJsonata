@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <memory>
 #include <string>
@@ -52,7 +51,7 @@ TEST_F(SignatureTest, testParametersAreConvertedToArrays) {
     expr.registerFunction("greet", greetFn);
 
     auto result = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_string());
+    ASSERT_TRUE(result.isString());
     EXPECT_EQ(result.get<std::string>(), "[[1], [null], [3], [null]]");
 }
 
@@ -89,7 +88,7 @@ TEST_F(SignatureTest, testVarArg) {
     expression.registerFunction("sumvar", sumFn);
 
     auto result = expression.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_number_integer());
+    ASSERT_TRUE(result.isInteger());
     EXPECT_EQ(result.get<long long>(), 6);
 }
 
@@ -140,7 +139,7 @@ TEST_F(SignatureTest, testVarArgMany) {
     expr.registerFunction("customArgs", customArgsFn);
 
     auto result = expr.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_string());
+    ASSERT_TRUE(result.isString());
     EXPECT_EQ(result.get<std::string>(), "[test, [1, 2, 3, 4], 3]");
 }
 

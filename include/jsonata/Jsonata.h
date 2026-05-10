@@ -25,7 +25,6 @@
  */
 #pragma once
 
-#include "jsonata/backends.h"
 #include <any>
 #include <chrono>
 #include <functional>
@@ -35,6 +34,7 @@
 #include <vector>
 
 #include "jsonata/Parser.h"
+#include "Jsonata/backend.h"
 
 // Forward declarations
 namespace jsonata
@@ -60,7 +60,7 @@ namespace jsonata
     {
         private:
             std::shared_ptr<Frame> parent_;
-            jsonata::backend::ordered_map<std::string, std::any> bindings_;
+            std::unordered_map<std::string, std::any> bindings_;
             std::chrono::time_point<std::chrono::steady_clock> timestamp_;
             int64_t timeout_;
             int64_t recursionDepth_;
@@ -91,7 +91,7 @@ namespace jsonata
             std::shared_ptr<Frame> getParent() const { return parent_; }
 
             // Bindings access
-            const jsonata::backend::ordered_map<std::string, std::any> &getBindings() const
+            const std::unordered_map<std::string, std::any> &getBindings() const
             {
                 return bindings_;
             }
@@ -129,14 +129,13 @@ namespace jsonata
 
             template <typename T>
                 requires isCompatible<T>
-            static T parse( const std::string & s ) {
-                return T::parse( s );
+            static backend<T> parse( const std::string & s ) {
+                return wrap(T::parse( s ));
             }
 
             // Main evaluation methods
             template<typename T>
-                requires isCompatible<T>
-            T evaluate(const T &input, std::shared_ptr<Frame> bindings)
+            jsonata::backend<T> evaluate(const T &input, std::shared_ptr<Frame> bindings)
             {
                 currentInstance_ = this;
 
@@ -159,37 +158,46 @@ namespace jsonata
             }
 
             template<typename T>
-                requires isCompatible<T>
-            inline T evaluate(const T &input)
+            jsonata::backend<T> evaluate(const jsonata::backend<T> &input, std::shared_ptr<Frame> bindings) {
+                return evaluate( *input, bindings );
+            }
+
+            template<typename T>
+            inline jsonata::backend<T> evaluate(const T &input)
             {
                 return evaluate(input, nullptr);
             }
+
             template<typename T>
-                requires isCompatible<T>
-            T evaluate(std::nullptr_t)
+            inline jsonata::backend<T> evaluate(const jsonata::backend<T> &input)
+            {
+                return evaluate(*input );
+            }
+
+            template<typename T>
+            jsonata::backend<T> evaluate(std::nullptr_t)
             {
                 return evaluate(T());
             }
             template<typename T>
-                requires isCompatible<T>
-            T evaluate(std::nullptr_t, std::shared_ptr<Frame> bindings)
+            jsonata::backend<T> evaluate(std::nullptr_t, std::shared_ptr<Frame> bindings)
             {
                 return evaluate(T(), bindings);
             }
 
             // Main evaluation methods (ordered JSON variants)
-            // jsonata::backend::ordered_json evaluate(const jsonata::backend::ordered_json &input);
-            // jsonata::backend::ordered_json evaluate(const jsonata::backend::ordered_json &input,
+            // jsonata::ordered_json evaluate(const jsonata::ordered_json &input);
+            // jsonata::ordered_json evaluate(const jsonata::ordered_json &input,
             //                                         std::shared_ptr<Frame> bindings);
-            // jsonata::backend::ordered_json evaluate(std::nullptr_t);
-            // jsonata::backend::ordered_json evaluate(std::nullptr_t, std::shared_ptr<Frame> bindings);
+            // jsonata::ordered_json evaluate(std::nullptr_t);
+            // jsonata::ordered_json evaluate(std::nullptr_t, std::shared_ptr<Frame> bindings);
 
-            // // Main evaluation methods (unordered jsonata::backend::json variants)
-            // jsonata::backend::json evaluate(const jsonata::backend::json &input);
-            // jsonata::backend::json evaluate(const jsonata::backend::json &input,
+            // // Main evaluation methods (unordered jsonata::json variants)
+            // jsonata::json evaluate(const jsonata::json &input);
+            // jsonata::json evaluate(const jsonata::json &input,
             //                                 std::shared_ptr<Frame> bindings);
-            // jsonata::backend::json evaluateUnordered(std::nullptr_t);
-            // jsonata::backend::json evaluateUnordered(std::nullptr_t,
+            // jsonata::json evaluateUnordered(std::nullptr_t);
+            // jsonata::json evaluateUnordered(std::nullptr_t,
             //                                          std::shared_ptr<Frame> bindings);
 
             std::any evaluate(std::shared_ptr<Parser::Symbol> expr,
@@ -436,16 +444,17 @@ namespace jsonata
             std::any reduceTupleStream(const std::any &tupleStream);
 
             // Conversion helpers between engine types and JSON
-            // Ordered variants preserve insertion order using jsonata::backend::ordered_json
+            // Ordered variants preserve insertion order using jsonata::ordered_json
             template<typename T>
                 requires isCompatible<T>
-            static std::any toAny(const T &j)
+            static std::any toAny(const T &jv)
             {
-                if (j.is_null())
+                auto j = jsonata::backend(jv);
+                if (j.isNull())
                     return std::any{};
-                if (j.is_boolean())
+                if (j.isBool())
                     return std::any(j.template get<bool>());
-                if (j.is_number_integer()) {
+                if (j.isInteger()) {
                     // Preserve sign by using int64_t; for large unsigned, capture as
                     // uint64_t
                     int64_t si = 0;
@@ -457,23 +466,23 @@ namespace jsonata
                     uint64_t ui = j.template get<uint64_t>();
                     return std::any(static_cast<uint64_t>(ui));
                 }
-                if (j.is_number_unsigned()) {
+                if (j.isUnsignedInteger()) {
                     uint64_t ui = j.template get<uint64_t>();
                     return std::any(static_cast<uint64_t>(ui));
                 }
-                if (j.is_number_float())
+                if (j.isFloat())
                     return std::any(j.template get<double>());
-                if (j.is_string())
+                if (j.isString())
                     return std::any(j.template get<std::string>());
-                if (j.is_array()) {
+                if (j.isArray()) {
                     std::vector<std::any> out;
                     out.reserve(j.size());
-                    jsonata::backend::copy(j, out, [](const T &el) { return toAny(el); });
+                    jsonata::copy(j, out, [](const T &el) { return toAny(el); });
                     return out;
                 }
-                if (j.is_object()) {
-                    jsonata::backend::ordered_map<std::string, std::any> m;
-                    jsonata::backend::copy(j, m, [](const T &el) { return toAny(el); });
+                if (j.isObject()) {
+                    std::unordered_map<std::string, std::any> m;
+                    jsonata::copy(j, m, [](const T &el) { return toAny(el); });
                     return m;
                 }
                 return std::any{};
@@ -481,10 +490,10 @@ namespace jsonata
 
             template<typename T>
                 requires isCompatible<T>
-            static T fromAny(const std::any &value)
+            static jsonata::backend<T> fromAny(const std::any &value)
             {
                 if (!value.has_value())
-                    return T();
+                    return jsonata::backend<T>::create();
 
                 // Canonicalize numeric types: convert doubles with no fractional part to
                 // integer types
@@ -501,57 +510,57 @@ namespace jsonata
 
                 const std::type_info &type = value.type();
                 if (type == typeid(bool))
-                    return T(std::any_cast<bool>(value));
+                    return jsonata::backend<T>::create(std::any_cast<bool>(value));
                 if (type == typeid(double))
-                    return T(std::any_cast<double>(value));
+                    return jsonata::backend<T>::create(std::any_cast<double>(value));
                 if (type == typeid(int64_t))
-                    return T(std::any_cast<int64_t>(value));
+                    return jsonata::backend<T>::create(std::any_cast<int64_t>(value));
                 if (type == typeid(uint64_t))
-                    return T(std::any_cast<uint64_t>(value));
+                    return jsonata::backend<T>::create(std::any_cast<uint64_t>(value));
                 // Cross-platform support for additional integral types (e.g., long/long long)
                 if (type == typeid(long long))
-                    return T(static_cast<int64_t>(std::any_cast<long long>(value)));
+                    return jsonata::backend<T>::create(static_cast<int64_t>(std::any_cast<long long>(value)));
                 if (type == typeid(unsigned long long))
-                    return T(static_cast<uint64_t>(std::any_cast<unsigned long long>(value)));
+                    return jsonata::backend<T>::create(static_cast<uint64_t>(std::any_cast<unsigned long long>(value)));
                 if (type == typeid(long))
-                    return T(static_cast<int64_t>(std::any_cast<long>(value)));
+                    return jsonata::backend<T>::create(static_cast<int64_t>(std::any_cast<long>(value)));
                 if (type == typeid(unsigned long))
-                    return T(static_cast<uint64_t>(std::any_cast<unsigned long>(value)));
+                    return jsonata::backend<T>::create(static_cast<uint64_t>(std::any_cast<unsigned long>(value)));
                 if (type == typeid(int))
-                    return T(static_cast<int64_t>(std::any_cast<int>(value)));
+                    return jsonata::backend<T>::create(static_cast<int64_t>(std::any_cast<int>(value)));
                 if (type == typeid(unsigned int))
-                    return T(static_cast<uint64_t>(std::any_cast<unsigned int>(value)));
+                    return jsonata::backend<T>::create(static_cast<uint64_t>(std::any_cast<unsigned int>(value)));
                 if (type == typeid(std::string))
-                    return T(std::any_cast<std::string>(value));
+                    return jsonata::backend<T>::create(std::any_cast<std::string>(value));
                 if (type == typeid(Utils::JList)) {
-                    auto arr = T::array();
+                    auto arr = jsonata::backend<T>::array();
                     const auto &jlist = std::any_cast<const Utils::JList &>(value);
-                    jsonata::backend::copy(jlist, arr, [](const std::any &a) { return fromAny<T>(a); });
+                    jsonata::copy(jlist, arr, [](const std::any &a) { return fromAny<T>(a); });
                     return arr;
                 }
                 if (type == typeid(std::vector<std::any>)) {
-                    auto arr = T::array();
+                    auto arr = jsonata::backend<T>::array();
                     const auto &vec = std::any_cast<const std::vector<std::any> &>(value);
-                    jsonata::backend::copy(vec, arr, [](const std::any &a) { return fromAny<T>(a); });
+                    jsonata::copy(vec, arr, [](const std::any &a) { return fromAny<T>(a); });
                     return arr;
                 }
-                if (type == typeid(jsonata::backend::ordered_map<std::string, std::any>)) {
-                    auto obj = T::object();
+                if (type == typeid(std::unordered_map<std::string, std::any>)) {
+                    auto obj = jsonata::backend<T>::object();
                     const auto &map = std::
-                        any_cast<const jsonata::backend::ordered_map<std::string, std::any> &>(
+                        any_cast<const std::unordered_map<std::string, std::any> &>(
                             value);
-                    jsonata::backend::copy(map, obj, [](const std::any &a) { return fromAny<T>(a); });
+                    jsonata::copy(map, obj, [](const std::any &a) { return fromAny<T>(a); });
                     return obj;
                 }
                 if (type == typeid(std::shared_ptr<Parser::Symbol>)) {
-                    return T();
+                    return jsonata::backend<T>::create();
                 }
-                // Directly handle jsonata::backend::ordered_json returned from custom functions
+                // Directly handle json returned from custom functions
                 if (type == typeid(T)) {
-                    return std::any_cast<T>(value);
+                    return jsonata::backend<T>(std::any_cast<T>(value));
                 }
 
-                return T();
+                return jsonata::backend<T>::create();
             }
 
             template<typename from, typename to >
@@ -559,49 +568,49 @@ namespace jsonata
             static to convert( const from & oj ) {
                 // Recursive lambda to convert ordered_json to json
                 std::function<to(const from & )> convert = [&](const from & j) -> to {
-                    if (j.is_null()) return to();
-                    if (j.is_boolean()) return to(j.template get<bool>());
-                    if (j.is_number_integer()) {
+                    if (j.isNull()) return jsonata::backend<to>::create();
+                    if (j.isBool()) return jsonata::backend<to>::create(j.template get<bool>());
+                    if (j.isInteger()) {
                         int64_t si = 0;
                         try {
                             si = j.template get<int64_t>();
-                            return to(static_cast<int64_t>(si));
+                            return jsonata::backend<to>::create(static_cast<int64_t>(si));
                         } catch (...) {
                         }
                         uint64_t ui = j.template get<uint64_t>();
-                        return to(static_cast<uint64_t>(ui));
+                        return jsonata::backend<to>::create(static_cast<uint64_t>(ui));
                     }
-                    if (j.is_number_unsigned())
-                        return to(j.template get<uint64_t>());
-                    if (j.is_number_float())
-                        return to(j.template get<double>());
-                    if (j.is_string())
-                        return to(j.template get<std::string>());
-                    if (j.is_array()) {
-                        to arr = to::array();
-                        jsonata::backend::copy( j, arr, [&convert]( const from& el ) {
+                    if (j.isUnsignedInteger())
+                        return jsonata::backend<to>::create(j.template get<uint64_t>());
+                    if (j.isFloat())
+                        return jsonata::backend<to>::create(j.template get<double>());
+                    if (j.isString())
+                        return jsonata::backend<to>::create(j.template get<std::string>());
+                    if (j.isArray()) {
+                        auto arr = jsonata::backend<to>::array();
+                        jsonata::copy( j, arr, [&convert]( const from& el ) {
                             return convert(el );
                         });
                         return arr;
                     }
-                    if (j.is_object()) {
-                        to obj = to::object();
-                        jsonata::backend::copy( j, obj, [&convert]( const from& el ) {
+                    if (j.isObject()) {
+                        auto obj = jsonata::backend<to>::object();
+                        jsonata::copy( j, obj, [&convert]( const from& el ) {
                             return convert(el );
                         });
                         return obj;
                     }
-                    return to();
+                    return jsonata::backend<to>::create();
                 };
 
                 return convert(oj);
             }
 
-            // static std::any toAny(const jsonata::backend::ordered_json &j);
-            // static jsonata::backend::ordered_json fromAny(const std::any &value);
-            // // Unordered variants using jsonata::backend::json (key order may not be preserved)
-            // static std::any jsonToAny(const jsonata::backend::json &j);
-            // static jsonata::backend::json anyToJson(const std::any &value);
+            // static std::any toAny(const jsonata::ordered_json &j);
+            // static jsonata::ordered_json fromAny(const std::any &value);
+            // // Unordered variants using jsonata::json (key order may not be preserved)
+            // static std::any jsonToAny(const jsonata::json &j);
+            // static jsonata::json anyToJson(const std::any &value);
 
             // Error code mappings
             void initializeErrorCodes();

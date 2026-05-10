@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <jsonata/Jsonata.h>
-#include "jsonata/backends.h"
 #include <jsonata/JException.h>
 #include <jsonata/Functions.h>
 #include <vector>
@@ -20,7 +19,7 @@ TEST_F(CustomFunctionTest, testSupplier) {
     // Register zero-arg function via typed overload
     expression.registerFunction<std::string>("greet", []() { return std::string("Hello world"); });
     auto result = expression.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_string());
+    ASSERT_TRUE(result.isString());
     EXPECT_EQ(result.get<std::string>(), "Hello world");
 }
 
@@ -28,7 +27,7 @@ TEST_F(CustomFunctionTest, testEval) {
     Jsonata expression("$eval('$greet()')");
     expression.registerFunction<std::string>("greet", []() { return std::string("Hello world"); });
     auto result = expression.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_string());
+    ASSERT_TRUE(result.isString());
     EXPECT_EQ(result.get<std::string>(), "Hello world");
 }
 
@@ -36,7 +35,7 @@ TEST_F(CustomFunctionTest, testEvalWithParams) {
     Jsonata expression("($eval('$greet()'))");
     expression.registerFunction<std::string>("greet", []() { return std::string("Hello world"); });
     auto result = expression.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_string());
+    ASSERT_TRUE(result.isString());
     EXPECT_EQ(result.get<std::string>(), "Hello world");
 }
 
@@ -44,7 +43,7 @@ TEST_F(CustomFunctionTest, testUnary) {
     Jsonata expression("$echo(123)");
     expression.registerFunction<int64_t,int64_t>("echo", [](int64_t x) { return x; });
     auto result = expression.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_number());
+    ASSERT_TRUE(result.isNumber());
     EXPECT_EQ(result.get<int>(), 123);
 }
 
@@ -52,7 +51,7 @@ TEST_F(CustomFunctionTest, testBinary) {
     Jsonata expression("$add(21, 21)");
     expression.registerFunction<int64_t,int64_t,int64_t>("add", [](int64_t a, int64_t b) { return a + b; });
     auto result = expression.evaluate<JSONATA_TEST_BACKEND>(nullptr);
-    ASSERT_TRUE(result.is_number());
+    ASSERT_TRUE(result.isNumber());
     EXPECT_EQ(result.get<int>(), 42);
 }
 
@@ -68,9 +67,9 @@ TEST_F(CustomFunctionTest, testTernary) {
     };
     expression.registerFunction("abc", abc);
 
-    JSONATA_TEST_BACKEND data= JSONATA_TEST_BACKEND::object({{"a","a"},{"b","b"},{"c","c"}});
+    auto data= jsonata::backend<JSONATA_TEST_BACKEND>::object({{"a","a"},{"b","b"},{"c","c"}});
     auto result = expression.evaluate(data);
-    ASSERT_TRUE(result.is_string());
+    ASSERT_TRUE(result.isString());
     EXPECT_EQ(result.get<std::string>(), "abc");
 }
 

@@ -2450,61 +2450,59 @@ Jsonata::Jsonata(const Jsonata& other) {
     timestamp_ = other.timestamp_;
 }
 
-// std::any Jsonata::evaluate(const std::any anyInput,
-//                                                  std::shared_ptr<Frame> bindings) {
-//     // Always evaluate in a fresh child frame of the shared environment,
-//     // then (optionally) copy provided bindings into it. This avoids
-//     // concurrent mutations of the shared environment.
-//     std::shared_ptr<Frame> exec_env = createFrame(environment_);
-//     if (bindings != nullptr) {
-//         for (const auto& [key, value] : bindings->getBindings()) {
-//             exec_env->bind(key, value);
-//         }
-//     }
+std::any Jsonata::evaluate(const std::any anyInput,
+                           std::shared_ptr<Frame> bindings) {
+    // Always evaluate in a fresh child frame of the shared environment,
+    // then (optionally) copy provided bindings into it. This avoids
+    // concurrent mutations of the shared environment.
+    std::shared_ptr<Frame> exec_env = createFrame(environment_);
+    if (bindings != nullptr) {
+        for (const auto& [key, value] : bindings->getBindings()) {
+            exec_env->bind(key, value);
+        }
+    }
 
-//     // TODO: capture timestamp for $now() and $millis() functions
-//     // timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-//     //     std::chrono::system_clock::now().time_since_epoch()).count();
+    // TODO: capture timestamp for $now() and $millis() functions
+    // timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+    //     std::chrono::system_clock::now().time_since_epoch()).count();
 
-//     // CRITICAL: if the input is a JSON array, wrap it in a singleton sequence
-//     // Java reference lines 2575-2579:
-//     // if((input instanceof List) && !Utils.isSequence(input)) {
-//     //     input = Utils.createSequence(input);
-//     //     ((JList)input).outerWrapper = true;
-//     // }
-//     std::any processedInput = anyInput;
-//     if (anyInput.has_value() && Utils::isArray(anyInput) &&
-//         !Utils::isSequence(anyInput)) {
-//         auto sequence = Utils::createSequence(anyInput);
-//         sequence.outerWrapper = true;
-//         processedInput = sequence;
-//     }
+    // CRITICAL: if the input is a JSON array, wrap it in a singleton sequence
+    // Java reference lines 2575-2579:
+    // if((input instanceof List) && !Utils.isSequence(input)) {
+    //     input = Utils.createSequence(input);
+    //     ((JList)input).outerWrapper = true;
+    // }
+    std::any processedInput = anyInput;
+    if (anyInput.has_value() && Utils::isArray(anyInput) &&
+        !Utils::isSequence(anyInput)) {
+        auto sequence = Utils::createSequence(anyInput);
+        sequence.outerWrapper = true;
+        processedInput = sequence;
+    }
 
-//     // CRITICAL: put the processed input (which may be wrapped) into the
-//     // fresh execution environment as the root object "$"
-//     exec_env->bind("$", processedInput);
+    // CRITICAL: put the processed input (which may be wrapped) into the
+    // fresh execution environment as the root object "$"
+    exec_env->bind("$", processedInput);
 
-//     if (validateInput_) {
-//         Functions::validateInput(processedInput);
-//     }
+    if (validateInput_) {
+        Functions::validateInput(processedInput);
+    }
 
-//     std::any result;
-//     try {
-//         // Set thread-local input/environment for this evaluation
-//         tls_input_ = processedInput;
-//         tls_environment_ = exec_env;
-//         result = evaluate(expression_, processedInput, exec_env);
-//         // Clear TLS after evaluation to avoid dangling references
-//         tls_input_.reset();
-//         tls_environment_.reset();
-//         result = Utils::convertNulls(result);
-//         // Convert result back to jsonata::ordered_json
-//         return fromAny(result);
-//     } catch (const std::exception& err) {
-//         // TODO: populateMessage(err);
-//         throw;
-//     }
-// }
+    std::any result;
+    try {
+        // Set thread-local input/environment for this evaluation
+        tls_input_ = processedInput;
+        tls_environment_ = exec_env;
+        result = evaluate(expression_, processedInput, exec_env);
+        // Clear TLS after evaluation to avoid dangling references
+        tls_input_.reset();
+        tls_environment_.reset();
+        return Utils::convertNulls(result);
+    } catch (const std::exception& err) {
+        // TODO: populateMessage(err);
+        throw;
+    }
+}
 
 // jsonata::ordered_json Jsonata::evaluate(const jsonata::ordered_json& input) {
 //     return evaluate(input, nullptr);

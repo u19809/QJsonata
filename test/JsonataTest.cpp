@@ -91,10 +91,10 @@ namespace jsonata
                         success = false;
                     else {
                         std::multiset<std::string> a, b;
-                        exp.forAll( [&a](auto k, auto v) {
+                        exp.forAll( [&a](const std::string & k, const auto & v) {
                             v.dump();
                         });
-                        exp.forAll( [&b](auto k, auto v) {
+                        exp.forAll( [&b](const std::string & k, const auto & v) {
                             v.dump();
                         });
                         // for (const auto& el : exp) a.insert(el.dump());
@@ -445,9 +445,9 @@ namespace jsonata
             testOverrides = new TestOverrides();
             auto overrideArray = jsonata::backend<JSONATA_TEST_BACKEND>::array();
 
-            if( ! jsonValue.template getPropertyValueOfType<std::vector<int>>(
+            if( ! jsonValue.getPropertyValueOfType(
                 "override",
-                overrideArray) ) {
+                Array(overrideArray)) ) {
                 std::cerr << "Warning: Missing or invalid 'override' array in test-overrides.json, " "using empty overrides"
                           << std::endl;
                 return testOverrides;
@@ -463,27 +463,27 @@ namespace jsonata
                 const auto &overrideObj = item;
                 TestOverride to;
 
-                overrideObj.template getPropertyValueOfType<std::string>(
+                overrideObj.getPropertyValueOfType(
                     "name",
                     to.name
                     );
 
-                overrideObj.template getPropertyValueOfType<bool>(
+                overrideObj.getPropertyValueOfType(
                     "ignoreError",
                     to.ignoreError
                     );
 
-                overrideObj.template getPropertyValueOfType<jsonata::backend<JSONATA_TEST_BACKEND>>(
+                overrideObj.getPropertyValueOfType(
                     "alternateResult",
-                    to.alternateResult
+                    Array(to.alternateResult)
                     );
 
-                overrideObj.template getPropertyValueOfType<std::string>(
+                overrideObj.getPropertyValueOfType(
                     "alternateCode",
                     to.alternateCode
                     );
 
-                overrideObj.template getPropertyValueOfType<std::string>(
+                overrideObj.getPropertyValueOfType(
                     "reason",
                     to.reason
                     );
@@ -656,7 +656,7 @@ namespace jsonata
             } else {
                 auto errorIt = testDef.find("error");
                 if (errorIt != testDef.end() && errorIt->second.isObject()) {
-                    errorIt->second.getPropertyValueOfType<std::string>(
+                    errorIt->second.getPropertyValueOfType(
                         "code",
                         code );
                     // auto errorCodeIt = errorObj.find("code");

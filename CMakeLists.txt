@@ -10,45 +10,32 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(JSONATA_NLOHMANN_BACKEND "Build qjsonata with nlohmann json backend" OFF)
-option(JSONATA_QTJSON_BACKEND "Build qjsonata with Qt json backend" OFF)
-option(JSONATA_QTVARIANT_BACKEND "Build qjsonata with Qt QVariant backend" OFF)
-
 include(GNUInstallDirs)
 include(FetchContent)
 
 set( JSONATA_ENABLED_BACKENDS )
 
-if( JSONATA_NLOHMANN_BACKEND )
-    # Find nlohmann_json or fetch if not found
-    find_package(nlohmann_json CONFIG QUIET)
-    if(NOT nlohmann_json_FOUND)
-        FetchContent_Declare(
-            nlohmann_json
-            GIT_REPOSITORY https://github.com/nlohmann/json.git
-            GIT_TAG        v3.12.0
-        )
-        FetchContent_MakeAvailable(nlohmann_json)
-        # Mark that we used FetchContent
-        set(JSONATA_USED_FETCHCONTENT_JSON TRUE)
-    endif()
-    list( APPEND JSONATA_ENABLED_BACKENDS nlohmann::unordered_json nlohmann::json )
+# Find nlohmann_json or fetch if not found
+find_package(nlohmann_json CONFIG QUIET)
+if(NOT nlohmann_json_FOUND)
+    FetchContent_Declare(
+        nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG        v3.12.0
+    )
+    FetchContent_MakeAvailable(nlohmann_json)
+    # Mark that we used FetchContent
+    set(JSONATA_USED_FETCHCONTENT_JSON TRUE)
+    list( APPEND JSONATA_ENABLED_BACKENDS nlohmann::ordered_json nlohmann::json )
     set( JSONATA_NLOHMANN_ENABLED true )
 endif()
 
-if( JSONATA_QTJSON_BACKEND OR JSONATA_QTVARIANT_BACKEND )
-    find_package(Qt6 REQUIRED COMPONENTS Core)
-    if(NOT Qt6_FOUND)
-        error( "Cannot find Qt >=6.10" )
-    endif()
-    if( JSONATA_QTJSON_BACKEND  )
-        list( APPEND JSONATA_ENABLED_BACKENDS QJsonValue )
-        set( JSONATA_QTJSON_ENABLED true )
-    endif()
-    if( JSONATA_QTVARIANT_BACKEND )
-        list( APPEND JSONATA_ENABLED_BACKENDS QVariant )
-        set( JSONATA_QTVARIANT_ENABLED true )
-    endif()
+find_package(Qt6 QUIET COMPONENTS Core)
+if(Qt6_FOUND)
+    list( APPEND JSONATA_ENABLED_BACKENDS QJsonValue QVariant )
+    set( JSONATA_QT_ENABLED true )
+else()
+    warning( "Cannot find Qt >=6.10." )
 endif()
 
 # Collect source files
@@ -95,7 +82,7 @@ target_include_directories(qjsonata PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-if( JSONATA_NLOHMANN_BACKEND )
+if( JSONATA_NLOHMANN_ENABLED )
     # nlohmann_json is used from public headers, so propagate it PUBLIC.
     # Ensure the exported target only records the imported name in the install
     # interface to avoid referencing non-exported build targets.
@@ -115,17 +102,10 @@ if( JSONATA_NLOHMANN_BACKEND )
             $<INSTALL_INTERFACE:nlohmann_json::nlohmann_json>
         )
     endif()
-    target_compile_definitions(qjsonata PUBLIC JSONATA_NLOHMANN_ENABLED )
 endif()
 
-if( JSONATA_QTJSON_BACKEND OR JSONATA_QTVARIANT_BACKEND )
+if( JSONATA_QT_ENABLED )
     target_link_libraries(qjsonata PUBLIC Qt6::Core)
-    if( JSONATA_QTJSON_BACKEND )
-        target_compile_definitions(qjsonata PUBLIC JSONATA_QTJSON_ENABLED )
-    endif()
-    if( JSONATA_QTVARIANT_BACKEND )
-        target_compile_definitions(qjsonata PUBLIC JSONATA_QTVARIANT_ENABLED )
-    endif()
 endif()
 
 # Optionally build tests
@@ -173,8 +153,11 @@ if(JSONATA_BUILD_TESTS)
     add_executable(qgenerate test/Generate.cpp
         include/jsonata/backend.h)
     target_link_libraries(qgenerate qjsonata)
+    list(GET JSONATA_ENABLED_BACKENDS 0 FIRST_BACKEND)
+    target_compile_definitions(qgenerate PRIVATE
+        JSONATA_TEST_BACKEND=${FIRST_BACKEND}
+    )
 
-    # Create main test executables
     foreach( BE IN LISTS JSONATA_ENABLED_BACKENDS )
         # 1. Strip the extension to create a clean executable name
         string(REPLACE "::" "_" CLEAN_BE ${BE})
@@ -196,10 +179,6 @@ if(JSONATA_BUILD_TESTS)
             gtest_main
             gtest
             Threads::Threads
-        )
-        # will select the last backend to test but we only need one to generate
-        target_compile_definitions(qgenerate PRIVATE
-            JSONATA_TEST_BACKEND=${BE}
         )
     endforeach()
 
@@ -284,7 +263,7 @@ endif()
 
 # Installation rules
 if(JSONATA_USED_FETCHCONTENT_JSON)
-    if( JSONATA_NLOHMANN_BACKEND)
+    if( JSONATA_NLOHMANN_ENABLED )
         install(TARGETS qjsonata nlohmann_json
             EXPORT qjsonataTargets
             LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -292,7 +271,7 @@ if(JSONATA_USED_FETCHCONTENT_JSON)
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
             INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
         )
-endif()
+    endif()
 else()
     install(TARGETS qjsonata
         EXPORT qjsonataTargets
@@ -308,7 +287,7 @@ install(DIRECTORY third_party/utfcpp/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # Export targets for the install-tree
 install(EXPORT qjsonataTargets
-    FILE qjsonataTargets.cmake
+    FILE jsonataTargets.cmake
     NAMESPACE qjsonata::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/qjsonata
 )

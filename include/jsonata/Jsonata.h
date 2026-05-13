@@ -128,7 +128,7 @@ namespace jsonata
             Jsonata(const Jsonata &other); // Copy constructor for per-thread instances
 
             template <typename T>
-                requires isCompatible<T>
+                requires jsonata::isReadCompatible<T>
             static backend<T> parse( const std::string & s ) {
                 return wrap(T::parse( s ));
             }
@@ -446,7 +446,7 @@ namespace jsonata
             // Conversion helpers between engine types and JSON
             // Ordered variants preserve insertion order using jsonata::ordered_json
             template<typename T>
-                requires isCompatible<T>
+                requires jsonata::isReadCompatible<T>
             static std::any toAny(const T &jv)
             {
                 auto j = jsonata::backend(jv);
@@ -489,7 +489,7 @@ namespace jsonata
             }
 
             template<typename T>
-                requires isCompatible<T>
+                requires jsonata::isReadCompatible<T>
             static jsonata::backend<T> fromAny(const std::any &value)
             {
                 if (!value.has_value())
@@ -564,7 +564,7 @@ namespace jsonata
             }
 
             template<typename from, typename to >
-                requires isCompatible<from> && isCompatible<to>
+                requires jsonata::isReadCompatible<from> && jsonata::isReadCompatible<to>
             static to convert( const from & oj ) {
                 // Recursive lambda to convert ordered_json to json
                 std::function<to(const from & )> convert = [&](const from & j) -> to {

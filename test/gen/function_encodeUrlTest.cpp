@@ -6,12 +6,12 @@ using namespace jsonata;
 class function_encodeUrlTest : public JsonataTest {
 };
 
-// 
+// $encodeUrl(\"https://mozilla.org/?x=шеллы\")
 TEST_F(function_encodeUrlTest, case000) {
     EXPECT_NO_THROW(runCase("jsonata/test/test-suite/groups/function-encodeUrl/case000.json"));
 }
 
-// 
+// $encodeUrl(blah)
 TEST_F(function_encodeUrlTest, case001) {
     EXPECT_NO_THROW(runCase("jsonata/test/test-suite/groups/function-encodeUrl/case001.json"));
 }

@@ -1,86 +1,95 @@
 #pragma once
 
-#ifdef JSONATA_NLOHMANN_ENABLED
-
-#include "JException.h"
 #include "Utils.h"
-#include "common_backend.h"
 #include <concepts>
 
+#include "common_backend.h"
+
 #include <nlohmann/json.hpp>
-template<typename T>
-struct is_nlohmann : std::false_type
-{};
 
-template<typename... Args>
-struct is_nlohmann<nlohmann::basic_json<Args...>> : std::true_type
-{};
+#include <nlohmann/json.hpp>
+#include <type_traits>
+#include <concepts>
 
+template <typename T>
+concept isNlohmann = requires(T j) {
+        typename T::value_type;
+        { j.is_object() } -> std::same_as<bool>;
+        { j.is_array() } -> std::same_as<bool>;
+        // This is the "fingerprint" of a nlohmann-like container
+        T::array();
+    };
+
+namespace jsonata
+{
 // Single bridge specialization
 template<typename T>
-    requires is_nlohmann<T>::value
-struct json_bridge<T>
+    requires isNlohmann<T>
+struct json_bridge_impl<T,void>
 {
+        using BaseT = std::remove_cvref_t<T>;
         using is_json_bridge_type = void; // Tag to satisfy the concept
 
-        static T create(auto&& value) {
-            using V = std::remove_cvref_t<decltype(value)>;
+        static BaseT create(auto&& value) {
+            using V = std::decay_t<decltype(value)>;
 
             if constexpr (std::is_same_v<V, std::nullptr_t>) {
-                return T(QJsonValue::Null);
+                return BaseT();
             } else if constexpr (std::is_constructible_v<T, V>) {
-                return T(value);
+                return BaseT(value);
             } else {
                 static_assert(false, "Unsupported type for nlohmann creation");
             }
         }
 
-        static T create() { return T(); }
+        static BaseT create() { return BaseT(); }
 
-        static size_t size(const T &value) { return value.size(); }
+        static size_t size(const BaseT &value) { return value.size(); }
 
-        static bool isEmpty(const T &value) { return value.empty(); }
+        static bool isEmpty(const BaseT &value) { return value.empty(); }
 
-        static bool isObject(const T &value) { return value.is_object(); }
+        static bool isObject(const BaseT &value) { return value.is_object(); }
 
-        static bool isArray(const T &value) { return value.is_array(); }
+        static bool isArray(const BaseT &value) { return value.is_array(); }
 
-        static bool isNumber(const T &value) { return value.is_number(); }
+        static bool isNumber(const BaseT &value) { return value.is_number(); }
 
-        static bool isNull(const T &value) { return value.is_null(); }
+        static bool isInteger(const BaseT &value) { return value.is_number_integer(); }
 
-        static bool isBool(const T &value) { return value.is_bool(); }
+        static bool isFloat(const BaseT &value) { return value.is_number_float(); }
 
-        static bool isInteger(const T &value) { return value.is_number_integer(); }
+        static bool isUnsignedInteger(const BaseT &value) { return value.is_number_unsigned(); }
 
-        static bool isFloat(const T &value) { return value.is_number_float(); }
+        static bool isBool(const BaseT &value) { return value.is_boolean(); }
 
-        static bool isUnsignedInteger(const T &value) { return V.is_number_unsigned(); }
+        static bool isString(const BaseT &value) { return value.is_string(); }
 
-        static bool contains(const T &value, const std::string &k) { return value.contains(k); }
+        static bool isNull(const BaseT &value) { return value.is_null(); }
 
-        static bool isString(const T &value) { return value.is_string(); }
+        static bool EQ(const BaseT &v1,const BaseT & v2) { return v1 == v2; }
 
-        static nlohmann::basic_json &at(const T &value, const std::string &k) { return value[k]; }
+        static bool contains(const BaseT &value, const std::string &k) { return value.contains(k); }
 
-        static nlohmann::basic_json &at(const T &value, int k) { return value[k]; }
+        static decltype(auto) at(const BaseT &value, const std::string &k) { return value[k]; }
+
+        static decltype(auto) at(const BaseT &value, int k) { return value[k]; }
 
         template<typename outType>
-        static outType get(const T &value)
+        static outType get(const BaseT &value)
         {
             return value.template get<outType>();
         }
 
-        static outType parse(const std::string &s) { return nlohmann::parse(s); }
+        static BaseT parse(const std::string &s) { return T::parse(s); }
 
-        static Value array() { return nlohmann::array(); }
+        static BaseT array() { return BaseT::array(); }
 
-        static Value object() { return nlohmann::object(); }
+        static BaseT object() { return BaseT::object(); }
 
-        static void pushBack(T &val, auto value) { val.push_back(value); }
+        static void pushBack(BaseT &val, auto value) { val.push_back(value); }
 
         template<typename action>
-        static void mutateForAll(T &from, action a)
+        static void mutateForAll(BaseT &from, action a)
         {
             if (from.is_array()) {
                 int idx = 0;
@@ -96,7 +105,7 @@ struct json_bridge<T>
         }
 
         template<typename action>
-        static void doForAll(const T &from, action a)
+        static void forAll(const BaseT &from, action a)
         {
             using fromType = std::decay_t<decltype(from)>;
             if constexpr (std::is_same_v<
@@ -128,7 +137,7 @@ struct json_bridge<T>
         }
 
         template<typename keyType, typename valueType>
-        static void appendValue(T &to, const keyType &k, const valueType &v)
+        static void appendValue(BaseT &to, const keyType &k, const valueType &v)
         {
             if (to.is_array()) {
                 to.push_back(v);
@@ -138,18 +147,18 @@ struct json_bridge<T>
         }
 
         template<typename keyType, typename valueType>
-        static void set(T &to, const keyType &k, const valueType &v)
+        static void set(BaseT &to, const keyType &k, const valueType &v)
         {
-            to[] = v;
+            to[k] = v;
         }
 
-        static std::string dump(const T &v) { return v.dump(); }
+        static std::string dump(const BaseT &v) { return v.dump(); }
 
-        template<typename propertyType>
-        static bool getPropertyValueOfType(const T &root,
+        static bool getPropertyValueOfType(const BaseT &root,
                                     const std::string &propertyName,
-                                    propertyType &propertyValue)
+                                    auto &propertyValue)
         {
+            using propertyType = std::decay_t<decltype(propertyValue)>;
             auto convertor = [&](auto E, auto &Prop) {
                 using EType = std::decay_t<decltype(E)>; // This is the type of E
 
@@ -164,12 +173,7 @@ struct json_bridge<T>
                         Prop = E.template get<bool>();
                         return true;
                     }
-                } else if constexpr (isStdVector<propertyType>) {
-                    if (E.is_array()) {
-                        Prop = E;
-                        return true;
-                    }
-                } else if constexpr (IsNlohmann<propertyType>) {
+                } else if constexpr (isNlohmann<propertyType>) {
                     Prop = E;
                     return true;
                 } else {
@@ -183,9 +187,22 @@ struct json_bridge<T>
             auto overrideIt = root.find(propertyName);
             return (overrideIt != root.end()) ? convertor((*overrideIt), propertyValue) : false;
         }
-};
 
-#else
-template<typename T>
-concept IsNlohmann = false;
-#endif
+        static bool getPropertyValueOfType(const BaseT &root,
+                                           const std::string &propertyName,
+                                           TaggedProperty<T,AsArray> propertyValue)
+        {
+            auto convertor = [&](auto E, TaggedProperty<T,AsArray> Prop) {
+                using EType = std::decay_t<decltype(E)>; // This is the type of E
+                if (E.is_array()) {
+                    Prop.value = E;
+                    return true;
+                }
+                return false;
+            };
+
+            auto overrideIt = root.find(propertyName);
+            return (overrideIt != root.end()) ? convertor((*overrideIt), propertyValue) : false;;
+        }
+};
+}

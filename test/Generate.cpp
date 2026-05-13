@@ -113,6 +113,7 @@ public:
 
     // Extract expression from test case for comment
     static std::string getExpressionComment(const JSONATA_TEST_BACKEND& testCase) {
+        // If this assertion fails, the specialization is invisible to the compiler here
         if (jsonata::backend(testCase).isObject() &&
             jsonata::backend(testCase).contains("expr") &&
             jsonata::backend(testCase)["expr"].isString() )
